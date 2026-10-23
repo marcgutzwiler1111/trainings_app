@@ -61,6 +61,42 @@ A feature is done when:
 
 - Mobile-first.
 - Large tap targets during active workouts.
+
+## Git commit conventions
+
+Use descriptive commit messages.
+
+Format:
+
+<type>: <short meaningful description>
+
+Allowed/common types:
+
+- feat
+- fix
+- test
+- refactor
+- docs
+- chore
+
+Examples:
+
+feat: add workout cycle domain logic
+fix: prevent incomplete workouts from advancing cycle
+test: add circuit benchmark volume coverage
+refactor: simplify exercise repository queries
+docs: update implementation plan
+chore: configure expo project bootstrap
+
+Do not use commit messages that consist only of numbers, task IDs, hashes, or generic labels such as:
+
+update
+changes
+fix stuff
+phase 1
+commit 2
+
+Each commit message must describe what changed.
 - Exercise selection uses compact selector fields opening searchable selection sheets.
 - Exercise thumbnails are shown where they improve rapid recognition.
 - During Circuit, show both current and next exercise.
