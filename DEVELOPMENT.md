@@ -1,4 +1,6 @@
-# Development — Phase 0
+# Development
+
+Phase 2 persistence APIs and validation are documented in [src/data/README.md](src/data/README.md).
 
 ## Prerequisites and installation
 
@@ -49,12 +51,13 @@ npx expo export --platform android --platform ios --max-workers 2
 
 ## Database startup and migration rules
 
-The root `SQLiteProvider` opens `hybrid-training.db` and runs `migrateDatabase`
+The root `SQLiteProvider` opens `hybrid-training.db` and runs `initializeDatabase` (migrations plus seeds)
 before rendering navigation. Startup shows a loading indicator and displays an
 error message if initialization fails. No destructive recovery is attempted.
 
 `PRAGMA user_version` records the schema version. Migration 1 establishes
-versioning without creating any product tables or seed data. Foreign keys and
+versioning without creating any product tables or seed data. Migration 2 adds
+the MVP schema; initialization also seeds the profile, cycle state and 29 exercises. Foreign keys and
 WAL mode are enabled. Pending migrations and their version updates execute
 inside a transaction. Newer database versions are rejected without downgrading.
 
@@ -79,8 +82,8 @@ The optional web target uses Expo SQLite's WASM worker. `metro.config.js`
 serves WASM assets and sets COOP/COEP headers needed for SharedArrayBuffer.
 Any separate web host must also serve these headers. Web support supplements
 the documented Android/iOS targets; native behavior still needs a compatible
-device or emulator. This phase implements no workout behavior, domain tables,
-exercise seed, profile, cycle state or settings logic.
+device or emulator. The UI remains the Phase 0 placeholder shell; Phase 1 domain
+logic and Phase 2 persistence are available to subsequent feature work.
 
 ## Cloud validation for CODEX-001
 

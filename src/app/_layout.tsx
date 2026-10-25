@@ -3,7 +3,7 @@ import { SQLiteProvider } from 'expo-sqlite';
 import { Component, type ErrorInfo, type ReactNode, Suspense } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { migrateDatabase } from '../data/migrations';
+import { initializeDatabase } from '../data/initialize';
 
 class DatabaseBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -34,7 +34,7 @@ export default function RootLayout() {
   return (
     <DatabaseBoundary>
       <Suspense fallback={<View style={styles.status}><ActivityIndicator accessibilityLabel="Datenbank wird geöffnet" /></View>}>
-        <SQLiteProvider databaseName="hybrid-training.db" onInit={migrateDatabase} useSuspense>
+        <SQLiteProvider databaseName="hybrid-training.db" onInit={initializeDatabase} useSuspense>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
           </Stack>
