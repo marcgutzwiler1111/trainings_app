@@ -1,8 +1,9 @@
-import { Stack } from 'expo-router';
+import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { Component, type ErrorInfo, type ReactNode, Suspense } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
+import { ApplicationProvider } from '../features/application/provider';
 import { initializeDatabase } from '../data/initialize';
 
 class DatabaseBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -31,16 +32,21 @@ class DatabaseBoundary extends Component<{ children: ReactNode }, { failed: bool
 }
 
 export default function RootLayout() {
+  const dark = useColorScheme() === 'dark';
   return (
+    <ThemeProvider value={dark ? DarkTheme : DefaultTheme}>
     <DatabaseBoundary>
       <Suspense fallback={<View style={styles.status}><ActivityIndicator accessibilityLabel="Datenbank wird geöffnet" /></View>}>
         <SQLiteProvider databaseName="hybrid-training.db" onInit={initializeDatabase} useSuspense>
+          <ApplicationProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
           </Stack>
+          </ApplicationProvider>
         </SQLiteProvider>
       </Suspense>
     </DatabaseBoundary>
+    </ThemeProvider>
   );
 }
 
