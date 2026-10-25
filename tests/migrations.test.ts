@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { migrateDatabase, type MigrationDatabase } from '../src/data/migrations.ts';
+import { migrateDatabase, migrations, type MigrationDatabase } from '../src/data/migrations.ts';
 
 function connect(filename = ':memory:') {
   const sqlite = new DatabaseSync(filename);
@@ -32,14 +32,14 @@ test('bootstrap persists the schema version, enables foreign keys and creates no
   const filename = join(directory, 'bootstrap.db');
   let connection = connect(filename);
   try {
-    await migrateDatabase(connection.db);
+    await migrateDatabase(connection.db, migrations.slice(0, 1));
     assert.equal(connection.sqlite.prepare('PRAGMA user_version').get()?.user_version, 1);
     assert.equal(connection.sqlite.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1);
     assert.equal(connection.sqlite.prepare('PRAGMA journal_mode').get()?.journal_mode, 'wal');
     assert.equal(connection.sqlite.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table'").get()?.count, 0);
     connection.sqlite.close();
     connection = connect(filename);
-    await migrateDatabase(connection.db);
+    await migrateDatabase(connection.db, migrations.slice(0, 1));
     assert.equal(connection.sqlite.prepare('PRAGMA user_version').get()?.user_version, 1);
   } finally {
     connection.sqlite.close();
@@ -66,7 +66,7 @@ test('migrations run in order and are not repeated', async () => {
 test('failed migration rolls back its SQL and version and can be retried', async () => {
   const { sqlite, db } = connect();
   try {
-    await migrateDatabase(db);
+    await migrateDatabase(db, migrations.slice(0, 1));
     await assert.rejects(migrateDatabase(db, [
       { version: 1, async up() {} },
       { version: 2, async up(db) { await db.execAsync('CREATE TABLE test_fixture (id INTEGER); INVALID SQL'); } },

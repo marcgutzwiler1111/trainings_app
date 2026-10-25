@@ -1,3 +1,5 @@
+import { mvpSchema } from './schema.ts';
+
 /** Minimal async surface shared by expo-sqlite and the SQLite integration tests. */
 export interface MigrationDatabase {
   execAsync(sql: string): Promise<void>;
@@ -13,6 +15,7 @@ export interface Migration {
 // Version 1 establishes versioning only. Domain tables and seeds belong to Phase 2.
 export const migrations: readonly Migration[] = [
   { version: 1, async up() {} },
+  { version: 2, async up(db) { await db.execAsync(mvpSchema); } },
 ];
 
 export async function migrateDatabase(
