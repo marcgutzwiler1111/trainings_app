@@ -1,4 +1,3 @@
-import type { SessionStatus } from '../shared/types.ts';
 import { calculateEffectiveLoad, calculateVolume, relativeToBodyweight, type Load } from '../shared/measurements.ts';
 import { integer, nonNegative } from '../shared/validation.ts';
 
@@ -10,7 +9,9 @@ export interface WorkingSet {
 export interface ExercisePerformance {
   /** Exact variant ID, never a display name or muscle group. */
   readonly exerciseId: string;
-  readonly status: SessionStatus;
+  /** All planned working sets of this exercise were completed (normally four in MVP).
+   * Independent of the overall workout status; the caller supplies exercise completion. */
+  readonly isComplete: boolean;
   readonly sets: readonly WorkingSet[];
 }
 
@@ -28,7 +29,7 @@ export function calculateStrengthBenchmark(
   history: readonly ExercisePerformance[],
 ): number {
   return history.reduce((best, entry) => (
-    entry.exerciseId === exerciseId && entry.status === 'COMPLETE'
+    entry.exerciseId === exerciseId && entry.isComplete
       ? Math.max(best, calculateExerciseVolume(entry.sets))
       : best
   ), 0);
@@ -41,7 +42,7 @@ export function evaluateStrengthBenchmark(
 ) {
   const previousBenchmark = calculateStrengthBenchmark(current.exerciseId, history);
   const currentVolume = calculateExerciseVolume(current.sets);
-  const eligible = current.status === 'COMPLETE';
+  const eligible = current.isComplete;
   return {
     previousBenchmark,
     currentVolume,

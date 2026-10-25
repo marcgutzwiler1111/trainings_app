@@ -54,10 +54,15 @@ Circuit result arrays may be empty or partial and do not require UI structures
 or a fixed array size. They represent individual round/exercise results with a
 locked effectiveWeight. The caller provides valid, non-duplicated result rows.
 
-Strength history is matched by exact exerciseId and only COMPLETE records count.
-Pass history excluding the current session. Empty eligible history has a volume
-baseline of 0. A strictly greater COMPLETE volume is a new PR; a tie is not.
-Non-COMPLETE current volume can be calculated but never updates the benchmark.
+Strength history is matched by exact exerciseId. ExercisePerformance.isComplete
+means all planned working sets of that concrete exercise were completed (normally
+four in MVP). It is supplied by the caller from exercise-level completion, never
+from the overall workout status. Only these completed exercises count, even if
+the overall workout is INCOMPLETE. Pass history excluding the current session.
+Empty eligible history has a volume baseline of 0. A strictly greater eligible
+volume is a new PR; a tie is not. Partial exercise volume can be calculated and
+saved by the caller but never updates the benchmark. Volume calculation itself
+continues to support arbitrary set counts.
 
 ## Benchmark time
 
@@ -85,6 +90,6 @@ npm run lint
 ```
 
 The existing test command discovers `tests/domain-*.test.ts` and the Phase 0
-migration tests. CODEX-002 adds 122 Domain Core tests; the combined suite has
-127 passing tests. No additional dependencies, UI routes, tables or repositories
+migration tests. Including the CODEX-002A eligibility correction, there are 123 Domain Core tests;
+the combined suite has 128 passing tests. No additional dependencies, UI routes, tables or repositories
 were added, and the existing product specification is unchanged.

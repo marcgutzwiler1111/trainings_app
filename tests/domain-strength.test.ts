@@ -10,11 +10,10 @@ const sets = Object.freeze([
   Object.freeze({ weight: 100, reps: 6 }),
 ]);
 const history: readonly ExercisePerformance[] = Object.freeze([
-  { exerciseId: 'bench', status: 'COMPLETE', sets: [{ weight: 100, reps: 20 }] },
-  { exerciseId: 'bench', status: 'COMPLETE', sets: [{ weight: 100, reps: 28 }] },
-  { exerciseId: 'bench', status: 'INCOMPLETE', sets: [{ weight: 1000, reps: 50 }] },
-  { exerciseId: 'bench', status: 'IN_PROGRESS', sets: [{ weight: 1000, reps: 60 }] },
-  { exerciseId: 'bench-variant', status: 'COMPLETE', sets: [{ weight: 2000, reps: 50 }] },
+  { exerciseId: 'bench', isComplete: true, sets: Array(4).fill({ weight: 100, reps: 5 }) },
+  { exerciseId: 'bench', isComplete: true, sets: Array(4).fill({ weight: 100, reps: 7 }) },
+  { exerciseId: 'bench', isComplete: false, sets: [{ weight: 1000, reps: 50 }] },
+  { exerciseId: 'bench-variant', isComplete: true, sets: Array(4).fill({ weight: 2000, reps: 5 }) },
 ]);
 
 test('100 kg × 8 reps produces a set volume of 800', () => {
@@ -32,38 +31,60 @@ test('exercise volume accepts empty, single-set and more than four-set inputs', 
   assert.equal(calculateExerciseVolume(Array(6).fill({ weight: 100, reps: 8 })), 4800);
 });
 
-test('Strength Benchmark uses only COMPLETE history for the exact exercise ID', () => {
+test('Strength Benchmark uses only completed exercises for the exact exercise ID', () => {
   assert.equal(calculateStrengthBenchmark('bench', history), 2800);
   assert.equal(calculateStrengthBenchmark('unknown', history), 0);
 });
 
 test('a higher completed Exercise Volume establishes a new Strength PR', () => {
-  assert.deepEqual(evaluateStrengthBenchmark({ exerciseId: 'bench', status: 'COMPLETE', sets }, history), {
+  assert.deepEqual(evaluateStrengthBenchmark({ exerciseId: 'bench', isComplete: true, sets }, history), {
     previousBenchmark: 2800, currentVolume: 2900, isNewPr: true, newBenchmark: 2900,
   });
 });
 
 for (const reps of [27, 28]) {
   test(`a volume of ${reps * 100} does not beat an existing 2800 PR`, () => {
-    assert.deepEqual(evaluateStrengthBenchmark({ exerciseId: 'bench', status: 'COMPLETE', sets: [{ weight: 100, reps }] }, history), {
+    assert.deepEqual(evaluateStrengthBenchmark({ exerciseId: 'bench', isComplete: true, sets: Array.from({ length: 4 }, (_, index) => ({ weight: 100, reps: index === 3 ? reps - 21 : 7 })) }, history), {
       previousBenchmark: 2800, currentVolume: reps * 100, isNewPr: false, newBenchmark: 2800,
     });
   });
 }
 
-for (const status of ['PLANNED', 'IN_PROGRESS', 'INCOMPLETE'] as const) {
-  test(`${status} performance is calculated but cannot update the Strength Benchmark`, () => {
-    assert.deepEqual(evaluateStrengthBenchmark({ exerciseId: 'bench', status, sets }, history), {
-      previousBenchmark: 2800, currentVolume: 2900, isNewPr: false, newBenchmark: 2800,
+for (const workoutStatus of ['COMPLETE', 'INCOMPLETE'] as const) {
+  test(`a completed Strength exercise remains eligible in an overall ${workoutStatus} workout`, () => {
+    const workout = { status: workoutStatus, strength: { exerciseId: 'bench', isComplete: true, sets } };
+    assert.deepEqual(evaluateStrengthBenchmark(workout.strength, history), {
+      previousBenchmark: 2800, currentVolume: 2900, isNewPr: true, newBenchmark: 2900,
     });
+    assert.equal(calculateStrengthBenchmark('bench', [workout.strength]), 2900);
   });
 }
 
+test('two completed sets produce an interim volume but cannot update the benchmark', () => {
+  const partial: ExercisePerformance = {
+    exerciseId: 'bench', isComplete: false,
+    sets: [{ weight: 100, reps: 8 }, { weight: 100, reps: 7 }],
+  };
+  assert.deepEqual(evaluateStrengthBenchmark(partial, []), {
+    previousBenchmark: 0, currentVolume: 1500, isNewPr: false, newBenchmark: 0,
+  });
+});
+
+test('an unfinished exercise cannot set a PR even when its interim volume beats the benchmark', () => {
+  const partial: ExercisePerformance = {
+    exerciseId: 'bench', isComplete: false, sets: [{ weight: 200, reps: 8 }, { weight: 200, reps: 7 }],
+  };
+  assert.deepEqual(evaluateStrengthBenchmark(partial, history), {
+    previousBenchmark: 2800, currentVolume: 3000, isNewPr: false, newBenchmark: 2800,
+  });
+  assert.equal(calculateStrengthBenchmark('bench', [...history, partial]), 2800);
+});
+
 test('the first positive completed volume beats an empty history baseline of zero', () => {
-  assert.deepEqual(evaluateStrengthBenchmark({ exerciseId: 'bench', status: 'COMPLETE', sets }, []), {
+  assert.deepEqual(evaluateStrengthBenchmark({ exerciseId: 'bench', isComplete: true, sets }, []), {
     previousBenchmark: 0, currentVolume: 2900, isNewPr: true, newBenchmark: 2900,
   });
-  assert.equal(evaluateStrengthBenchmark({ exerciseId: 'bench', status: 'COMPLETE', sets: [] }, []).isNewPr, false);
+  assert.equal(evaluateStrengthBenchmark({ exerciseId: 'bench', isComplete: true, sets: [] }, []).isNewPr, false);
 });
 
 test('RIR-aware Epley: 100 × 6 @ RIR 2 retains full precision', () => {
