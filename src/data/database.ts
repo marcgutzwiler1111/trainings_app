@@ -32,6 +32,16 @@ export class Store {
       return result;
     });
   }
+  /** Internal composition boundary. Scoped repositories must not escape this callback. */
+  transaction<T>(task: (store: Store) => Promise<T>): Promise<T> {
+    return this.write(() => task(new TransactionStore(this.db, this.now)));
+  }
+
+}
+
+class TransactionStore extends Store {
+  override read<T>(task: (db: Database) => Promise<T>): Promise<T> { return task(this.db); }
+  override write<T>(task: (db: Database) => Promise<T>): Promise<T> { return task(this.db); }
 }
 
 export async function uuid(db: Database): Promise<string> {
