@@ -1,5 +1,6 @@
-import { useState, type ReactNode, type Ref, type ComponentRef } from 'react';
+import { useEffect, useState, type ReactNode, type Ref, type ComponentRef } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, type TextInputProps } from 'react-native';
+import { resolveExerciseImage } from '../lib/exerciseImages';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function usePalette() {
@@ -54,9 +55,19 @@ export function ConfirmDialog({ visible, title, message, confirmLabel, busy, onC
   </Modal>;
 }
 export function ExerciseThumbnail({ uri, name, size = 44 }: { uri: string | null; name: string; size?: number }) {
-  const [failed, setFailed] = useState(false); const p = usePalette();
-  return uri && !failed
-    ? <Image source={{ uri }} accessibilityLabel={name} onError={() => setFailed(true)} style={[styles.thumbnail, { width: size, height: size }]} />
+  const p = usePalette();
+  const [resolved, setResolved] = useState<{ source: string; uri: string } | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true; let release: (() => void) | undefined;
+    if (uri) void resolveExerciseImage(uri).then(result => {
+      if (!mounted) { result.release(); return; }
+      release = result.release; setFailed(null); setResolved({ source: uri, uri: result.uri });
+    }).catch(() => { if (mounted) setFailed(uri); });
+    return () => { mounted = false; release?.(); };
+  }, [uri]);
+  return uri && resolved?.source === uri && failed !== uri
+    ? <Image source={{ uri: resolved.uri }} accessibilityLabel={name} onError={() => setFailed(uri)} style={[styles.thumbnail, { width: size, height: size }]} />
     : <View style={[styles.thumbnail, { width: size, height: size, backgroundColor: p.background, borderColor: p.border, borderWidth: 1 }]}><Text accessibilityLabel="Kein Übungsbild" style={{ color: p.muted, fontSize: 24 }}>◇</Text></View>;
 }
 const styles = StyleSheet.create({

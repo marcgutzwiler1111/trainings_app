@@ -11,6 +11,9 @@ Circuit runtime, resume and restart are documented in
 Workout Summary, guarded completion and cycle decisions are documented in
 [src/features/workout/completion.md](src/features/workout/completion.md).
 
+Exercise Library, Create/Edit, activation and durable local thumbnails are documented in
+[src/features/exercises/README.md](src/features/exercises/README.md).
+
 ## Prerequisites and installation
 
 Use Node.js 24 LTS (`.nvmrc`) and npm. From the repository root:
@@ -50,7 +53,7 @@ npx expo export --platform android --platform ios --max-workers 2
 
 ## Structure
 
-- `src/app/`: Expo Router, functional Home, Workout Builder and Overview; three placeholder tabs.
+- `src/app/`: Expo Router, functional Home, Exercise Library, Workout Builder and Overview; two placeholder tabs.
 - `src/components/`: native controls, confirmations, exercise selector and placeholder UI.
 - `src/data/`: SQLite initialization and migration mechanism.
 - `src/features/`: application services and repository provider.

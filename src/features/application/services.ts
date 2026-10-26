@@ -7,6 +7,7 @@ import { defaultBuilder, validateBuilder, strengthEffects, circuitEffect, workou
 
 import { FeatureError } from './errors.ts';
 import { createActiveWorkoutServices, strengthProgress } from '../workout/active.ts';
+import { createExerciseServices } from '../exercises/services.ts';
 import { createCompletionServices } from '../workout/completion.ts';
 import { createCircuitServices } from '../workout/circuit.ts';
 export { FeatureError, userMessage } from './errors.ts';
@@ -69,6 +70,6 @@ export function createApplicationServices(repositories: ReturnType<typeof create
     },
     async endIncomplete(id: string) { await repositories.workouts.setStatus(id, 'INCOMPLETE'); },
   };
-  return { home, workout, training, completion: createCompletionServices(repositories), circuit: createCircuitServices(repositories) };
+  return { home, workout, training, exercises: createExerciseServices(repositories), completion: createCompletionServices(repositories), circuit: createCircuitServices(repositories) };
 }
 export type ApplicationServices = ReturnType<typeof createApplicationServices>;
