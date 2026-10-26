@@ -24,7 +24,15 @@
     "scheme": "hybrid-training-app",
     "plugins": [
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "W\u00e4hle ein Bild zur Wiedererkennung deiner \u00dcbung.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }
