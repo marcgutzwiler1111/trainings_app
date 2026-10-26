@@ -34,6 +34,9 @@ export default function WorkoutOverviewScreen() {
         {data.circuit.stations.map(s => <Copy key={s.id}>{s.position}. {roleLabels[s.role]} · {s.exercise_name_snapshot}</Copy>)}
       </Card>
       {data.session.status === 'IN_PROGRESS' && data.canCircuit && <Button label="Circuit ansehen" onPress={() => router.push({ pathname: '/workout/[id]/circuit-preview', params: { id } })} />}
+      {data.canComplete && <Card><Copy heading>Workout bereit zum Abschließen</Copy>
+        <Button label="Zusammenfassung & Abschließen" onPress={() => router.push({ pathname: '/workout/[id]/summary', params: { id } })} />
+      </Card>}
       {data.session.status === 'IN_PROGRESS' && <Button secondary label="Workout als unvollständig beenden" disabled={action.busy} onPress={() => setConfirm(true)} />}
       <ConfirmDialog visible={confirm} title="Workout unvollständig beenden?" message="Gespeicherte Daten bleiben erhalten. Der Cycle bleibt unverändert."
         busy={action.busy} confirmLabel="Unvollständig beenden bestätigen" onCancel={() => setConfirm(false)} onConfirm={() => {

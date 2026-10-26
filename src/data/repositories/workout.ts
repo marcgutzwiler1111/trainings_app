@@ -19,6 +19,9 @@ export class WorkoutRepository {
   constructor(store: Store) { this.store = store; }
   get(id: string): Promise<WorkoutSession> { return this.store.read(db => required(db, 'SELECT * FROM workout_sessions WHERE id=?', id)); }
   list(): Promise<WorkoutSession[]> { return this.store.read(db => db.getAllAsync('SELECT * FROM workout_sessions ORDER BY created_at,rowid')); }
+  latestFinished(): Promise<WorkoutSession | null> {
+    return this.store.read(db => db.getFirstAsync("SELECT * FROM workout_sessions WHERE status IN ('COMPLETE','INCOMPLETE') ORDER BY completed_at DESC,rowid DESC LIMIT 1"));
+  }
   active(): Promise<WorkoutSession | null> {
     return this.store.read(db => db.getFirstAsync("SELECT * FROM workout_sessions WHERE status='IN_PROGRESS'"));
   }
@@ -59,17 +62,39 @@ export class WorkoutRepository {
       await db.runAsync('UPDATE workout_sessions SET status=?, completed_at=?, updated_at=? WHERE id=?', status, status === 'INCOMPLETE' ? this.store.now() : null, this.store.now(), id);
     });
   }
-  /** Commit workout completion and domain-derived cycle transition as one unit. */
+  /** Coherent persisted summary, including the cycle used for completion preview. */
+  completionSnapshot(id: string) {
+    return this.store.transaction(async scope => {
+      const repository = new WorkoutRepository(scope);
+      const training = await repository.trainingSnapshot(id);
+      if (!training) throw new WorkoutCompletionError('Workout nicht gefunden.');
+      return { ...training, circuit: await repository.circuit(id),
+        cycle: await required<CycleState>(scope.db, 'SELECT * FROM cycle_state') };
+    });
+  }
+  /** Commit guarded workout completion and domain-derived cycle transition as one unit. */
   finish(id: string, manualOverride?: ManualOverrideResult) {
-    return this.store.write(async db => {
-      const session = await editableWorkout(db, id);
-      const cycle = await required<CycleState>(db, 'SELECT * FROM cycle_state');
-      if (cycle.current_position !== session.expected_cycle_position) throw new Error('Cycle changed since workout creation.');
+    return this.store.transaction(async scope => {
+      const snapshot = await new WorkoutRepository(scope).completionSnapshot(id);
+      const { session, cycle } = snapshot;
+      if (session.status !== 'IN_PROGRESS') throw new WorkoutCompletionError('Dieses Workout ist nicht mehr aktiv und kann nicht abgeschlossen werden.');
+      if (manualOverride !== undefined && manualOverride !== 'CONTINUE_CYCLE_NORMALLY' && manualOverride !== 'COUNT_AS_CURRENT_CYCLE_WORKOUT') {
+        throw new WorkoutCompletionError('Bitte eine gültige Cycle-Entscheidung wählen.');
+      }
+      const missing = workoutCompletionIssues(snapshot);
+      if (missing.length) throw new WorkoutCompletionError(missing.join('\n'));
+      const expected = getCycleItem(session.expected_cycle_position);
+      const expectedType = expected.type === 'WORKOUT' ? expected.workoutType : null;
+      if (cycle.current_position !== session.expected_cycle_position || expectedType !== session.expected_workout_type ||
+        session.was_manual_override !== Number(session.workout_type !== expectedType)) {
+        throw new WorkoutCompletionError('Der Cycle passt nicht mehr zum Workout-Start. Bitte zu Home zurückkehren. Das Workout bleibt gespeichert.');
+      }
       const result = completeWorkout({ position: cycle.current_position, workoutType: session.workout_type, status: 'COMPLETE', manualOverride });
       if (result.outcome === 'OVERRIDE_REQUIRED') return result;
       const now = this.store.now();
-      await db.runAsync("UPDATE workout_sessions SET status='COMPLETE', completed_at=?, updated_at=? WHERE id=?", now, now, id);
-      await db.runAsync('UPDATE cycle_state SET current_position=?, updated_at=?', result.position, now);
+      await scope.db.runAsync("UPDATE workout_sessions SET status='COMPLETE', completed_at=?, updated_at=?, cycle_override_decision=? WHERE id=?",
+        now, now, session.was_manual_override ? manualOverride! : null, id);
+      await scope.db.runAsync('UPDATE cycle_state SET current_position=?, updated_at=?', result.position, now);
       return result;
     });
   }
@@ -382,4 +407,26 @@ async function circuitContext(db: Database, id: string, requireReady = true): Pr
 function validateRuntime(snapshot: CircuitSnapshot): void {
   try { validateCircuitSnapshot(snapshot); }
   catch { throw new CircuitStateError('Die gespeicherte Circuit-Konfiguration oder Position ist ungültig. Bitte den Bereich neu starten und bearbeiten.'); }
+}
+
+export class WorkoutCompletionError extends Error {}
+
+/** One prerequisite definition used by preview and by the transactional finish guard. */
+export function workoutCompletionIssues(snapshot: {
+  power: PowerSection | null;
+  strength: readonly { exercise: StrengthExercise; sets: readonly StrengthSet[] }[];
+  circuit: CircuitSnapshot | null;
+}): string[] {
+  const issues: string[] = [];
+  if (snapshot.power?.status !== 'COMPLETE' || snapshot.power.completed_set_count !== 4) issues.push('Power ist noch nicht vollständig abgeschlossen.');
+  for (const slot of ['A', 'B'] as const) {
+    const row = snapshot.strength.find(row => row.exercise.slot === slot);
+    if (!row || row.exercise.is_complete !== 1 || row.sets.length !== 4) issues.push(`Strength ${slot} ist noch nicht vollständig abgeschlossen.`);
+  }
+  if (!snapshot.circuit || snapshot.circuit.section.status !== 'COMPLETE') issues.push('Circuit ist noch nicht vollständig abgeschlossen.');
+  else {
+    try { validateCircuitSnapshot(snapshot.circuit); }
+    catch { issues.push('Die gespeicherte Circuit-Completion ist ungültig. Bitte den Bereich prüfen.'); }
+  }
+  return issues;
 }

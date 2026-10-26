@@ -1,5 +1,5 @@
 import type { createRepositories } from '../../data/repositories/index.ts';
-import { ActiveWorkoutError, InactiveExerciseError } from '../../data/repositories/workout.ts';
+import { ActiveWorkoutError, InactiveExerciseError, workoutCompletionIssues } from '../../data/repositories/workout.ts';
 import { getCycleItem, type CyclePosition } from '../../domain/cycle/cycle.ts';
 import { calculateCircuitDuration } from '../../domain/circuit/duration.ts';
 import type { WorkoutType } from '../../domain/shared/types.ts';
@@ -7,15 +7,16 @@ import { defaultBuilder, validateBuilder, strengthEffects, circuitEffect, workou
 
 import { FeatureError } from './errors.ts';
 import { createActiveWorkoutServices, strengthProgress } from '../workout/active.ts';
+import { createCompletionServices } from '../workout/completion.ts';
 import { createCircuitServices } from '../workout/circuit.ts';
 export { FeatureError, userMessage } from './errors.ts';
 export function createApplicationServices(repositories: ReturnType<typeof createRepositories>) {
   const training = createActiveWorkoutServices(repositories);
   const home = {
     async load() {
-      const [cycle, active] = await Promise.all([repositories.cycle.get(), repositories.workouts.active()]);
+      const [cycle, active, latest] = await Promise.all([repositories.cycle.get(), repositories.workouts.active(), repositories.workouts.latestFinished()]);
       const item = getCycleItem(cycle.current_position);
-      return { cycle, item, active, nextLabel: item.type === 'REST' ? 'Rest' : workoutLabels[item.workoutType] };
+      return { cycle, item, active, latest, nextLabel: item.type === 'REST' ? 'Rest' : workoutLabels[item.workoutType] };
     },
     async completeRest(position: CyclePosition) { await repositories.cycle.completeRest(position); },
   };
@@ -61,12 +62,13 @@ export function createApplicationServices(repositories: ReturnType<typeof create
       if (!power || strength.length !== 2 || !circuit) throw new FeatureError('Die Workout-Konfiguration ist unvollständig. Bitte zu Home zurückkehren.');
       const progress = strengthProgress(snapshot.strength);
       return { session, power, strength, circuit, label: workoutLabels[session.workout_type], progress,
+        canComplete: session.status === 'IN_PROGRESS' && workoutCompletionIssues({ ...snapshot, circuit }).length === 0,
         canStrength: power.status === 'COMPLETE', canCircuit: power.status === 'COMPLETE' && progress.status === 'COMPLETE',
         durationSeconds: calculateCircuitDuration(circuit.stations.length, circuit.section.round_count) };
 
     },
     async endIncomplete(id: string) { await repositories.workouts.setStatus(id, 'INCOMPLETE'); },
   };
-  return { home, workout, training, circuit: createCircuitServices(repositories) };
+  return { home, workout, training, completion: createCompletionServices(repositories), circuit: createCircuitServices(repositories) };
 }
 export type ApplicationServices = ReturnType<typeof createApplicationServices>;

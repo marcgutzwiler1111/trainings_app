@@ -1,3 +1,4 @@
+import { completeSections } from './support/completion.ts';
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -32,9 +33,9 @@ async function configured(c: Awaited<ReturnType<typeof setup>>, type: 'UK_HAMS' 
   return { id, a, b };
 }
 
-test('fresh MVP schema has 18 tables, version 2, foreign keys and all singleton defaults', async t => {
+test('fresh MVP schema has 18 tables, latest version, foreign keys and all singleton defaults', async t => {
   const c = await setup(t);
-  assert.equal(c.sqlite.prepare('PRAGMA user_version').get()?.user_version, 2);
+  assert.equal(c.sqlite.prepare('PRAGMA user_version').get()?.user_version, 3);
   assert.equal(c.sqlite.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1);
   assert.equal(c.sqlite.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type='table'").get()?.n, 18);
   const profile = await c.profile.get();
@@ -161,6 +162,7 @@ test('only one normal workout can be in progress at a time', async t => {
 
 test('workout completion and cycle transition commit atomically and cannot repeat', async t => {
   const c = await setup(t); const id = await c.workouts.create('UK_HAMS');
+  await completeSections(c, id);
   assert.equal((await c.workouts.finish(id)).outcome, 'ADVANCED');
   assert.equal((await c.cycle.get()).current_position, 2);
   assert.equal((await c.workouts.get(id)).status, 'COMPLETE');
@@ -169,16 +171,18 @@ test('workout completion and cycle transition commit atomically and cannot repea
 
 test('cycle update failure rolls back workout completion', async t => {
   const c = await setup(t); const id = await c.workouts.create('UK_HAMS');
+  await completeSections(c, id);
   c.sqlite.exec("CREATE TRIGGER reject_cycle BEFORE UPDATE ON cycle_state BEGIN SELECT RAISE(ABORT,'cycle failure'); END;");
   await assert.rejects(c.workouts.finish(id), /cycle failure/);
-  assert.equal((await c.workouts.get(id)).status, 'PLANNED');
+  assert.equal((await c.workouts.get(id)).status, 'IN_PROGRESS');
   assert.equal((await c.cycle.get()).current_position, 1);
 });
 
 test('override requires explicit choice before persistence and can keep the cycle pending', async t => {
   const c = await setup(t); const id = await c.workouts.create('OK_BRUST');
+  await completeSections(c, id);
   assert.equal((await c.workouts.finish(id)).outcome, 'OVERRIDE_REQUIRED');
-  assert.equal((await c.workouts.get(id)).status, 'PLANNED');
+  assert.equal((await c.workouts.get(id)).status, 'IN_PROGRESS');
   await c.workouts.finish(id, 'CONTINUE_CYCLE_NORMALLY');
   assert.equal((await c.cycle.get()).current_position, 1);
 });
