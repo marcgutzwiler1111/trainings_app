@@ -1,3 +1,4 @@
+import { completePowerData, completeCircuitData } from './support/benchmarks.ts';
 import { completeSections } from './support/completion.ts';
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
@@ -292,7 +293,7 @@ test('Power Benchmark stores independent sides, weights, attempts and terminal s
   await c.benchmarks.finish('power', id, 'INCOMPLETE');
   assert.equal((await c.benchmarks.power(id)).session.status, 'INCOMPLETE');
   await assert.rejects(c.benchmarks.savePowerAttempt(left, 2, 290));
-  const complete = await c.benchmarks.createPower(); await c.benchmarks.finish('power', complete, 'COMPLETE');
+  const complete = await c.benchmarks.createPower(); await completePowerData(c, complete); await c.benchmarks.finish('power', complete, 'COMPLETE');
   assert.ok((await c.benchmarks.power(complete)).session.completed_at);
   assert.equal(calculateBenchmarkDueState('POWER', await c.benchmarks.scheduledSessions(), Date.parse('2027-01-01T00:00:00Z')).status, 'DUE');
 });
@@ -309,6 +310,7 @@ test('Circuit Benchmark creates six immutable snapshots and upserts ordered roun
   assert.equal((await c.benchmarks.circuit(id)).session.bodyweight_kg_snapshot, 80);
   assert.throws(() => c.sqlite.prepare('UPDATE circuit_benchmark_sessions SET bodyweight_kg_snapshot=90 WHERE id=?').run(id), /immutable/);
   assert.throws(() => c.sqlite.prepare("UPDATE circuit_benchmark_stations SET exercise_name_snapshot='Changed' WHERE circuit_benchmark_session_id=?").run(id), /immutable/);
+  await completeCircuitData(c, id);
   await c.benchmarks.finish('circuit', id, 'COMPLETE');
   await assert.rejects(c.benchmarks.saveCircuitResult(id, 1, 1, 16));
 });
@@ -332,6 +334,7 @@ test('file-backed database retains profile, sets, cycle and benchmark data after
   await c.workouts.setStrengthComplete(a, true);
   await c.workouts.saveCircuitProgress(id, 2, 1, 'IN_PROGRESS');
   const benchmark = await c.benchmarks.createCircuit(loads); await c.benchmarks.saveCircuitResult(benchmark, 3, 2, 12);
+  await c.benchmarks.finish('circuit', benchmark, 'INCOMPLETE');
   const powerBenchmark = await c.benchmarks.createPower();
   const powerTest = await c.benchmarks.addPowerTest(powerBenchmark, { testType: 'CHEST_PASS', side: 'NONE', medicineBallWeight: 4 });
   await c.benchmarks.savePowerAttempt(powerTest, 2, 330);

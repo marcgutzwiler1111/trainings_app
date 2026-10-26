@@ -1,3 +1,4 @@
+import { readActiveTraining, ActiveTrainingError } from '../activeTraining.ts';
 import { nextCircuitPosition } from '../../domain/circuit/progression.ts';
 import { validateCircuitSnapshot, type CircuitSnapshot, type CircuitCursor } from '../circuitSnapshot.ts';
 import { Store, required, insert, uuid, type Database } from '../database.ts';
@@ -31,6 +32,7 @@ export class WorkoutRepository {
     return this.store.transaction(async scope => {
       const repository = new WorkoutRepository(scope);
       if (await repository.active()) throw new ActiveWorkoutError();
+      if (await readActiveTraining(scope.db)) throw new ActiveTrainingError();
       for (const id of [config.powerExerciseId, config.strengthA.exerciseId, config.strengthB.exerciseId, ...config.stations.map(s => s.exerciseId)]) {
         if (!(await readExercise(scope.db, id)).is_active) throw new InactiveExerciseError();
       }
@@ -59,6 +61,8 @@ export class WorkoutRepository {
   async setStatus(id: string, status: 'IN_PROGRESS' | 'INCOMPLETE'): Promise<void> {
     await this.store.write(async db => {
       await editableWorkout(db, id);
+      const current = status === 'IN_PROGRESS' ? await readActiveTraining(db) : null;
+      if (current && current.id !== id) throw new ActiveTrainingError();
       await db.runAsync('UPDATE workout_sessions SET status=?, completed_at=?, updated_at=? WHERE id=?', status, status === 'INCOMPLETE' ? this.store.now() : null, this.store.now(), id);
     });
   }
