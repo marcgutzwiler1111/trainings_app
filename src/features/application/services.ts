@@ -7,6 +7,7 @@ import { defaultBuilder, validateBuilder, strengthEffects, circuitEffect, workou
 
 import { FeatureError } from './errors.ts';
 import { createActiveWorkoutServices, strengthProgress } from '../workout/active.ts';
+import { createCircuitServices } from '../workout/circuit.ts';
 export { FeatureError, userMessage } from './errors.ts';
 export function createApplicationServices(repositories: ReturnType<typeof createRepositories>) {
   const training = createActiveWorkoutServices(repositories);
@@ -66,6 +67,6 @@ export function createApplicationServices(repositories: ReturnType<typeof create
     },
     async endIncomplete(id: string) { await repositories.workouts.setStatus(id, 'INCOMPLETE'); },
   };
-  return { home, workout, training };
+  return { home, workout, training, circuit: createCircuitServices(repositories) };
 }
 export type ApplicationServices = ReturnType<typeof createApplicationServices>;

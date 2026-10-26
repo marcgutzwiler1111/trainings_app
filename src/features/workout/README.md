@@ -1,5 +1,8 @@
 # Active Workout — CODEX-005
 
+The normal Circuit implementation added by CODEX-006 is documented in
+[circuit-runtime.md](circuit-runtime.md). The following records the Power/Strength phase.
+
 This extends the existing ApplicationProvider, ApplicationServices and
 WorkoutRepository. SQLite remains the single source of truth for training data.
 There is no new workout-state provider, schema migration, package or background

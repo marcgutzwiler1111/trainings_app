@@ -30,7 +30,7 @@ export default function WorkoutOverviewScreen() {
       <Card><Copy heading>Strength</Copy>{data.strength.map(s => <Copy key={s.id}>{s.slot}: {s.exercise_name_snapshot} · {data.progress.exercises.find(e => e.id === s.id)?.saved ?? 0} / 4{s.is_complete ? ' ✓' : ''}</Copy>)}<Copy>{sectionLabels[data.progress.status]}</Copy>
         {data.session.status === 'IN_PROGRESS' && <Button label="Strength öffnen" disabled={action.busy || !data.canStrength} onPress={() => router.push({ pathname: '/workout/[id]/strength', params: { id } })} />}
       </Card>
-      <Card><Copy heading>Circuit</Copy><Copy>{data.circuit.section.round_count} Runden</Copy><Copy>{data.circuit.stations.length} Stationen</Copy><Copy>{data.durationSeconds / 60} Minuten</Copy><Copy>{data.canCircuit ? 'Circuit bereit' : 'Noch nicht gestartet'}</Copy>
+      <Card><Copy heading>Circuit</Copy><Copy>{data.circuit.section.round_count} Runden</Copy><Copy>{data.circuit.stations.length} Stationen</Copy><Copy>{data.durationSeconds / 60} Minuten</Copy><Copy>{data.circuit.section.status === 'COMPLETE' ? '✓ Circuit abgeschlossen' : data.circuit.section.status === 'IN_PROGRESS' ? `In Bearbeitung · Runde ${data.circuit.section.current_round} · Station ${data.circuit.section.current_station_position}` : data.canCircuit ? 'Circuit bereit' : 'Noch nicht gestartet'}</Copy>
         {data.circuit.stations.map(s => <Copy key={s.id}>{s.position}. {roleLabels[s.role]} · {s.exercise_name_snapshot}</Copy>)}
       </Card>
       {data.session.status === 'IN_PROGRESS' && data.canCircuit && <Button label="Circuit ansehen" onPress={() => router.push({ pathname: '/workout/[id]/circuit-preview', params: { id } })} />}

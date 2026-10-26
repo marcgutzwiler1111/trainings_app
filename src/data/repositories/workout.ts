@@ -1,3 +1,5 @@
+import { nextCircuitPosition } from '../../domain/circuit/progression.ts';
+import { validateCircuitSnapshot, type CircuitSnapshot, type CircuitCursor } from '../circuitSnapshot.ts';
 import { Store, required, insert, uuid, type Database } from '../database.ts';
 import { readExercise } from './exercise.ts';
 import type { WorkoutSession, PowerSection, StrengthExercise, StrengthSet, CircuitSection, CircuitStation, CycleState, Effect, CircuitRole, Profile, WorkoutStartConfiguration } from '../types.ts';
@@ -279,6 +281,58 @@ export class WorkoutRepository {
       await repository.restart(id, section, true);
     });
   }
+
+  circuitRuntimeSnapshot(id: string, requireReady = true): Promise<CircuitSnapshot> {
+    return this.store.read(db => circuitContext(db, id, requireReady));
+  }
+  startCircuitRuntime(id: string, sectionId: string): Promise<CircuitSnapshot> {
+    return this.store.transaction(async scope => {
+      const snapshot = await circuitContext(scope.db, id);
+      validateRuntime(snapshot);
+      if (snapshot.section.id !== sectionId) throw new CircuitStateError('Die Circuit-Konfiguration hat sich geändert. Bitte neu laden.');
+      if (snapshot.section.status === 'COMPLETE') throw new CircuitStateError('Circuit ist bereits abgeschlossen.');
+      if (snapshot.section.status === 'PLANNED') {
+        await new WorkoutRepository(scope).saveCircuitProgress(id, 1, 1, 'IN_PROGRESS');
+      }
+      return circuitContext(scope.db, id); // An overlapping second start never resets progress.
+    });
+  }
+  advanceCircuitRuntime(id: string, expected: CircuitCursor): Promise<CircuitSnapshot> {
+    return this.store.transaction(async scope => {
+      const snapshot = await circuitContext(scope.db, id);
+      validateRuntime(snapshot);
+      const { section, stations } = snapshot;
+      if (section.status !== 'IN_PROGRESS') throw new CircuitStateError('Circuit läuft nicht oder ist bereits abgeschlossen.');
+      if (section.id !== expected.sectionId || section.current_round !== expected.round || section.current_station_position !== expected.station) {
+        throw new CircuitStateError('Der Stationsfortschritt hat sich geändert. Bitte neu laden.');
+      }
+      const next = nextCircuitPosition(section.round_count, stations.length, expected);
+      await new WorkoutRepository(scope).saveCircuitProgress(id, next?.round ?? expected.round, next?.station ?? expected.station, next ? 'IN_PROGRESS' : 'COMPLETE');
+      return circuitContext(scope.db, id);
+    });
+  }
+  restartCircuitRuntime(id: string, expectedSectionId?: string): Promise<CircuitSnapshot> {
+    return this.store.transaction(async scope => {
+      const snapshot = await circuitContext(scope.db, id, false);
+      if (expectedSectionId !== undefined && snapshot.section.id !== expectedSectionId) throw new CircuitStateError('Circuit wurde inzwischen geändert. Bitte neu laden.');
+      // Preserve captured names/images/roles, but rotate identity so old timer events cannot affect a new run.
+      await new WorkoutRepository(scope).restart(id, 'CIRCUIT');
+      const sectionId = await uuid(scope.db);
+      await insert(scope.db, 'workout_circuit_sections', { id: sectionId, workout_session_id: id, round_count: snapshot.section.round_count, station_duration_seconds: snapshot.section.station_duration_seconds, status: 'PLANNED' });
+      for (const station of snapshot.stations) {
+        await insert(scope.db, 'workout_circuit_stations', { ...station, id: await uuid(scope.db), circuit_section_id: sectionId });
+      }
+      return circuitContext(scope.db, id, false);
+    });
+  }
+  saveCircuitConfiguration(id: string, sectionId: string, rounds: number, stations: readonly { exerciseId: string; role: CircuitRole; effect: Effect }[]): Promise<void> {
+    return this.store.transaction(async scope => {
+      const current = await circuitContext(scope.db, id, false);
+      if (current.section.id !== sectionId || current.section.status !== 'PLANNED' || current.section.started_at) throw new CircuitStateError('Circuit ist gesperrt oder wurde geändert. Bitte zuerst neu starten.');
+      for (const station of stations) if (!(await readExercise(scope.db, station.exerciseId)).is_active) throw new InactiveExerciseError();
+      await new WorkoutRepository(scope).saveCircuit(id, rounds, stations);
+    });
+  }
   lastConfiguration(workoutType: WorkoutType) {
     return this.store.read(async db => {
       const candidates = await db.getAllAsync<WorkoutSession>('SELECT * FROM workout_sessions WHERE workout_type=? ORDER BY created_at DESC,rowid DESC', workoutType);
@@ -311,4 +365,21 @@ async function requireStrength(db: Database, workoutId: string, strengthId: stri
   if (!await db.getFirstAsync('SELECT id FROM workout_strength_exercises WHERE id=? AND workout_session_id=?', strengthId, workoutId)) {
     throw new TrainingStateError('Die Strength-Übung gehört nicht zu diesem Workout oder wurde neu gestartet. Bitte neu laden.');
   }
+}
+
+export class CircuitStateError extends Error {}
+async function circuitContext(db: Database, id: string, requireReady = true): Promise<CircuitSnapshot> {
+  const session = await db.getFirstAsync<WorkoutSession>('SELECT * FROM workout_sessions WHERE id=?', id);
+  if (!session) throw new CircuitStateError('Workout nicht gefunden.');
+  if (session.status !== 'IN_PROGRESS') throw new CircuitStateError('Dieses Workout ist nicht aktiv. Gespeicherte Daten bleiben erhalten.');
+  const power = await db.getFirstAsync<PowerSection>('SELECT * FROM workout_power_sections WHERE workout_session_id=?', id);
+  const strength = await db.getAllAsync<StrengthExercise>('SELECT * FROM workout_strength_exercises WHERE workout_session_id=?', id);
+  if (requireReady && (power?.status !== 'COMPLETE' || strength.length !== 2 || strength.some(s => s.is_complete !== 1))) throw new CircuitStateError('Bitte zuerst Power und beide Strength-Übungen abschließen.');
+  const section = await db.getFirstAsync<CircuitSection>('SELECT * FROM workout_circuit_sections WHERE workout_session_id=?', id);
+  if (!section) throw new CircuitStateError('Der Circuit-Snapshot fehlt.');
+  return { section, stations: await db.getAllAsync<CircuitStation>('SELECT * FROM workout_circuit_stations WHERE circuit_section_id=? ORDER BY position', section.id) };
+}
+function validateRuntime(snapshot: CircuitSnapshot): void {
+  try { validateCircuitSnapshot(snapshot); }
+  catch { throw new CircuitStateError('Die gespeicherte Circuit-Konfiguration oder Position ist ungültig. Bitte den Bereich neu starten und bearbeiten.'); }
 }
