@@ -1,3 +1,5 @@
+import { createBenchmarkServices } from '../benchmarks/services.ts';
+import { ActiveTrainingError } from '../../data/activeTraining.ts';
 import type { createRepositories } from '../../data/repositories/index.ts';
 import { ActiveWorkoutError, InactiveExerciseError, workoutCompletionIssues } from '../../data/repositories/workout.ts';
 import { getCycleItem, type CyclePosition } from '../../domain/cycle/cycle.ts';
@@ -12,18 +14,22 @@ import { createExerciseServices } from '../exercises/services.ts';
 import { createCompletionServices } from '../workout/completion.ts';
 import { createCircuitServices } from '../workout/circuit.ts';
 export { FeatureError, userMessage } from './errors.ts';
-export function createApplicationServices(repositories: ReturnType<typeof createRepositories>) {
+export function createApplicationServices(repositories: ReturnType<typeof createRepositories>, now: () => number = Date.now) {
+  const benchmarks = createBenchmarkServices(repositories, now);
   const training = createActiveWorkoutServices(repositories);
   const home = {
     async load() {
       const [cycle, active, latest] = await Promise.all([repositories.cycle.get(), repositories.workouts.active(), repositories.workouts.latestFinished()]);
+      const benchmarkStatus = await benchmarks.dashboard();
       const item = getCycleItem(cycle.current_position);
-      return { cycle, item, active, latest, nextLabel: item.type === 'REST' ? 'Rest' : workoutLabels[item.workoutType] };
+      return { cycle, item, active, latest, benchmarkStatus, nextLabel: item.type === 'REST' ? 'Rest' : workoutLabels[item.workoutType] };
     },
     async completeRest(position: CyclePosition) { await repositories.cycle.completeRest(position); },
   };
   const workout = {
     async builder(type: WorkoutType) {
+      const activeTraining = await repositories.benchmarks.activeTraining();
+      if (activeTraining && activeTraining.kind !== 'WORKOUT') throw new FeatureError('Ein Benchmark ist bereits aktiv. Bitte über Home fortsetzen.');
       if (await repositories.workouts.active()) throw new FeatureError('Ein Workout ist bereits aktiv. Bitte über Home fortsetzen.');
       const [exercises, previous] = await Promise.all([repositories.exercises.list(), repositories.workouts.lastConfiguration(type)]);
       let draft = defaultBuilder(type); const warnings: string[] = [];
@@ -51,6 +57,7 @@ export function createApplicationServices(repositories: ReturnType<typeof create
           strengthA: { exerciseId: draft.strengthA!, effect: a }, strengthB: { exerciseId: draft.strengthB!, effect: b },
           rounds: draft.rounds, stations: draft.stations.map(s => ({ role: s.role, exerciseId: s.exerciseId!, effect: circuitEffect(draft.workoutType, s.role) })) });
       } catch (error) {
+        if (error instanceof ActiveTrainingError) throw new FeatureError(error.message);
         if (error instanceof ActiveWorkoutError) throw new FeatureError('Ein Workout ist bereits aktiv. Bitte über Home fortsetzen.');
         if (error instanceof InactiveExerciseError) throw new FeatureError('Eine gewählte Übung ist nicht mehr aktiv. Bitte den Builder neu laden.');
         throw error;
@@ -71,6 +78,6 @@ export function createApplicationServices(repositories: ReturnType<typeof create
     },
     async endIncomplete(id: string) { await repositories.workouts.setStatus(id, 'INCOMPLETE'); },
   };
-  return { home, workout, training, settings: createSettingsServices(repositories), exercises: createExerciseServices(repositories), completion: createCompletionServices(repositories), circuit: createCircuitServices(repositories) };
+  return { home, workout, training, benchmarks, settings: createSettingsServices(repositories), exercises: createExerciseServices(repositories), completion: createCompletionServices(repositories), circuit: createCircuitServices(repositories) };
 }
 export type ApplicationServices = ReturnType<typeof createApplicationServices>;
