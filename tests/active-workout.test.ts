@@ -1,3 +1,4 @@
+import { completeSections } from './support/completion.ts';
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -206,7 +207,7 @@ for (const status of ['COMPLETE','INCOMPLETE'] as const) {
   test(`${status} history preserves exercise-based PRs and rejects all active training mutations`, async t => {
     const c = await setup(t); await finishPower(c); const rows = (await c.app.training.strength(c.id)).rows;
     for (const row of rows) await four(c, row.exercise.id);
-    if (status === 'COMPLETE') await c.workouts.finish(c.id);
+    if (status === 'COMPLETE') { await completeSections(c, c.id); await c.workouts.finish(c.id); }
     else await c.app.workout.endIncomplete(c.id);
     const before = await c.workouts.trainingSnapshot(c.id);
     await assert.rejects(c.app.training.beginPower(c.id), /nicht mehr aktiv/);

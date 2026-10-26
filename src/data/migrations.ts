@@ -16,6 +16,12 @@ export interface Migration {
 export const migrations: readonly Migration[] = [
   { version: 1, async up() {} },
   { version: 2, async up(db) { await db.execAsync(mvpSchema); } },
+  { version: 3, async up(db) {
+    await db.execAsync(`ALTER TABLE workout_sessions ADD COLUMN cycle_override_decision TEXT
+      CHECK (cycle_override_decision IS NULL OR
+        (was_manual_override = 1 AND status = 'COMPLETE' AND cycle_override_decision IN
+          ('CONTINUE_CYCLE_NORMALLY', 'COUNT_AS_CURRENT_CYCLE_WORKOUT')));`);
+  } },
 ];
 
 export async function migrateDatabase(

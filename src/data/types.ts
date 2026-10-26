@@ -1,5 +1,5 @@
 import type { SessionStatus, WorkoutType, LoadMode, Side } from '../domain/shared/types.ts';
-import type { CyclePosition } from '../domain/cycle/cycle.ts';
+import type { ManualOverrideResult, CyclePosition } from '../domain/cycle/cycle.ts';
 import type { PowerBenchmarkTestType } from '../domain/benchmarks/power.ts';
 import type { CircuitBenchmarkExerciseKey } from '../domain/benchmarks/circuit.ts';
 
@@ -25,6 +25,7 @@ export interface CycleState { id: string; current_position: CyclePosition; updat
 export interface WorkoutSession {
   id: string; workout_type: WorkoutType; expected_cycle_position: CyclePosition;
   expected_workout_type: WorkoutType | null; was_manual_override: number; status: SessionStatus;
+  cycle_override_decision: ManualOverrideResult | null;
   started_at: string; completed_at: string | null; bodyweight_snapshot_kg: number | null;
   created_at: string; updated_at: string;
 }

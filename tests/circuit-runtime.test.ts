@@ -1,3 +1,4 @@
+import { completeSections } from './support/completion.ts';
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -59,7 +60,7 @@ test('Circuit cannot start or advance before Power and both Strength exercises c
 for (const status of ['PLANNED','COMPLETE','INCOMPLETE'] as const) {
   test(`Circuit commands cannot mutate a ${status} workout`,async t=>{
     const c=await setup(t); const section=(await c.workouts.circuit(c.id))!.section.id;
-    if(status==='COMPLETE')await c.workouts.finish(c.id);
+    if(status==='COMPLETE') { await completeSections(c, c.id); await c.workouts.finish(c.id); }
     else if(status==='INCOMPLETE')await c.app.workout.endIncomplete(c.id);
     else c.sqlite.prepare("UPDATE workout_sessions SET status='PLANNED' WHERE id=?").run(c.id);
     const before=await c.workouts.circuit(c.id);
