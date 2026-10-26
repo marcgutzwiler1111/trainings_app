@@ -5,7 +5,7 @@ import type { WorkoutType } from '../../domain/shared/types.ts';
 import { completeWorkout, getCycleItem, type ManualOverrideResult } from '../../domain/cycle/cycle.ts';
 import { calculateCircuitDuration } from '../../domain/circuit/duration.ts';
 import { integer, nonNegative, positive } from '../../domain/shared/validation.ts';
-import type { ExercisePerformance } from '../../domain/strength/calculations.ts';
+import { calculateExerciseVolume, calculateE1RM, type ExercisePerformance } from '../../domain/strength/calculations.ts';
 
 export async function editableWorkout(db: Database, id: string): Promise<WorkoutSession> {
   const session = await required<WorkoutSession>(db, 'SELECT * FROM workout_sessions WHERE id=?', id);
@@ -172,7 +172,7 @@ export class WorkoutRepository {
       await db.runAsync('UPDATE workout_circuit_sections SET current_round=?, current_station_position=?, status=?, started_at=coalesce(started_at,?), completed_at=? WHERE id=?', round, station, status, now, status === 'COMPLETE' ? now : null, section.id);
     });
   }
-  async restart(id: string, section: 'POWER' | 'STRENGTH' | 'CIRCUIT'): Promise<void> {
+  async restart(id: string, section: 'POWER' | 'STRENGTH' | 'CIRCUIT', preserveStrengthSelections = false): Promise<void> {
     await this.store.write(async db => {
       await editableWorkout(db, id);
       // Constants only; no user-controlled SQL identifiers.
@@ -180,11 +180,103 @@ export class WorkoutRepository {
         case 'POWER':
           await db.runAsync("UPDATE workout_power_sections SET status='PLANNED', completed_set_count=0, started_at=NULL, completed_at=NULL WHERE workout_session_id=?", id); break;
         case 'STRENGTH':
-          await db.runAsync('DELETE FROM workout_strength_exercises WHERE workout_session_id=?', id); break;
+          if (preserveStrengthSelections) {
+            await db.runAsync('DELETE FROM strength_sets WHERE workout_strength_exercise_id IN (SELECT id FROM workout_strength_exercises WHERE workout_session_id=?)', id);
+            await db.runAsync('UPDATE workout_strength_exercises SET is_complete=0 WHERE workout_session_id=?', id);
+          } else await db.runAsync('DELETE FROM workout_strength_exercises WHERE workout_session_id=?', id);
+          break;
         case 'CIRCUIT':
           await db.runAsync('DELETE FROM workout_circuit_sections WHERE workout_session_id=?', id); break;
         default: throw new RangeError('Unknown section.');
       }
+    });
+  }
+
+  /** One serialized read of the persisted training state. No derived metrics in SQL. */
+  trainingSnapshot(id: string) {
+    return this.store.read(async db => {
+      const session = await db.getFirstAsync<WorkoutSession>('SELECT * FROM workout_sessions WHERE id=?', id);
+      if (!session) return null;
+      const power = await db.getFirstAsync<PowerSection>('SELECT * FROM workout_power_sections WHERE workout_session_id=?', id);
+      const exercises = await db.getAllAsync<StrengthExercise>('SELECT * FROM workout_strength_exercises WHERE workout_session_id=? ORDER BY slot', id);
+      const strength = [];
+      for (const exercise of exercises) strength.push({ exercise, sets: await db.getAllAsync<StrengthSet>('SELECT * FROM strength_sets WHERE workout_strength_exercise_id=? ORDER BY set_number', exercise.id) });
+      return { session, power, strength };
+    });
+  }
+  strengthHistory(exerciseId: string, excludeWorkoutId: string) {
+    return this.store.read(async db => {
+      const exercises = await db.getAllAsync<StrengthExercise>(`SELECT e.* FROM workout_strength_exercises e JOIN workout_sessions w ON w.id=e.workout_session_id
+        WHERE e.exercise_id=? AND w.id<>? AND w.status IN ('COMPLETE','INCOMPLETE')
+        ORDER BY coalesce(w.completed_at,w.started_at) DESC,w.created_at DESC,w.rowid DESC,e.slot`, exerciseId, excludeWorkoutId);
+      const result = [];
+      for (const exercise of exercises) result.push({ exercise, sets: await db.getAllAsync<StrengthSet>('SELECT * FROM strength_sets WHERE workout_strength_exercise_id=? ORDER BY set_number', exercise.id) });
+      return result;
+    });
+  }
+  /** Guard and mutation share a transaction; UI state is never authoritative. */
+  private trainingWrite<T>(id: string, task: (scope: Store, repository: WorkoutRepository, power: PowerSection) => Promise<T>): Promise<T> {
+    return this.store.transaction(async scope => {
+      const session = await scope.db.getFirstAsync<WorkoutSession>('SELECT * FROM workout_sessions WHERE id=?', id);
+      if (!session) throw new TrainingStateError('Workout nicht gefunden.');
+      if (session.status !== 'PLANNED' && session.status !== 'IN_PROGRESS') throw new TrainingStateError('Dieses Workout ist nicht mehr aktiv. Gespeicherte Daten bleiben erhalten.');
+      const power = await scope.db.getFirstAsync<PowerSection>('SELECT * FROM workout_power_sections WHERE workout_session_id=?', id);
+      if (!power) throw new TrainingStateError('Der Power-Bereich fehlt. Bitte zum Workout Overview zurückkehren.');
+      return task(scope, new WorkoutRepository(scope), power);
+    });
+  }
+  beginPower(id: string): Promise<void> {
+    return this.trainingWrite(id, async (_scope, repository, power) => {
+      if (power.status === 'PLANNED') await repository.savePowerProgress(id, power.completed_set_count, 'IN_PROGRESS');
+    });
+  }
+  advancePower(id: string, expectedCount: number): Promise<void> {
+    integer(expectedCount, 'expectedCount');
+    return this.trainingWrite(id, async (_scope, repository, power) => {
+      if (power.status === 'COMPLETE' || power.completed_set_count >= 4) throw new TrainingStateError('Alle vier Power-Sets sind bereits gespeichert.');
+      if (power.completed_set_count !== expectedCount) throw new TrainingStateError('Der Set-Fortschritt hat sich geändert. Bitte neu laden.');
+      await repository.savePowerProgress(id, expectedCount + 1, 'IN_PROGRESS');
+    });
+  }
+  completePower(id: string): Promise<void> {
+    return this.trainingWrite(id, async (_scope, repository, power) => {
+      if (power.completed_set_count !== 4) throw new TrainingStateError('Bitte zuerst alle vier Power-Sets abschließen.');
+      await repository.savePowerProgress(id, 4, 'COMPLETE');
+    });
+  }
+  saveTrainingSet(id: string, strengthId: string, setNumber: number, weight: number, reps: number, rir: number): Promise<void> {
+    return this.trainingWrite(id, async (scope, repository, power) => {
+      requirePowerComplete(power);
+      await requireStrength(scope.db, id, strengthId);
+      // Validate computable metrics before committing, without introducing arbitrary input caps.
+      const previous = await repository.sets(strengthId);
+      calculateExerciseVolume([...previous.filter(s => s.set_number !== setNumber).map(s => ({ weight: s.weight_kg, reps: s.reps })), { weight, reps }]);
+      calculateE1RM(weight, reps, rir);
+      await repository.saveSet(strengthId, setNumber, weight, reps, rir);
+    });
+  }
+  completeTrainingExercise(id: string, strengthId: string): Promise<void> {
+    return this.trainingWrite(id, async (scope, repository, power) => {
+      requirePowerComplete(power);
+      await requireStrength(scope.db, id, strengthId);
+      const sets = await repository.sets(strengthId);
+      if (sets.length !== 4) throw new TrainingStateError('Bitte zuerst alle vier Arbeitssätze dieser Übung speichern.');
+      await repository.setStrengthComplete(strengthId, true);
+    });
+  }
+  changeTrainingStrength(id: string, slot: 'A' | 'B', exerciseId: string, effect: Effect): Promise<void> {
+    return this.trainingWrite(id, async (scope, repository, power) => {
+      requirePowerComplete(power);
+      const current = await scope.db.getFirstAsync<StrengthExercise>('SELECT * FROM workout_strength_exercises WHERE workout_session_id=? AND slot=?', id, slot);
+      if (!current) throw new TrainingStateError('Die Strength-Übung fehlt.');
+      if ((await repository.sets(current.id)).length) throw new TrainingStateError('Für diese Übung sind bereits Sätze gespeichert. Bitte zuerst Strength neu starten.');
+      if (!(await readExercise(scope.db, exerciseId)).is_active) throw new InactiveExerciseError();
+      await repository.selectStrength(id, slot, exerciseId, effect);
+    });
+  }
+  restartTraining(id: string, section: 'POWER' | 'STRENGTH'): Promise<void> {
+    return this.trainingWrite(id, async (_scope, repository) => {
+      await repository.restart(id, section, true);
     });
   }
   lastConfiguration(workoutType: WorkoutType) {
@@ -209,4 +301,14 @@ export class ActiveWorkoutError extends Error {
 }
 export class InactiveExerciseError extends Error {
   constructor() { super('An exercise is no longer active.'); }
+}
+
+export class TrainingStateError extends Error {}
+function requirePowerComplete(power: PowerSection): void {
+  if (power.status !== 'COMPLETE') throw new TrainingStateError('Bitte zuerst Power abschließen.');
+}
+async function requireStrength(db: Database, workoutId: string, strengthId: string): Promise<void> {
+  if (!await db.getFirstAsync('SELECT id FROM workout_strength_exercises WHERE id=? AND workout_session_id=?', strengthId, workoutId)) {
+    throw new TrainingStateError('Die Strength-Übung gehört nicht zu diesem Workout oder wurde neu gestartet. Bitte neu laden.');
+  }
 }

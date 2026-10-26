@@ -5,12 +5,11 @@ import { calculateCircuitDuration } from '../../domain/circuit/duration.ts';
 import type { WorkoutType } from '../../domain/shared/types.ts';
 import { defaultBuilder, validateBuilder, strengthEffects, circuitEffect, workoutLabels, type BuilderDraft } from '../workout/builder.ts';
 
-export class FeatureError extends Error {}
-export function userMessage(error: unknown): string {
-  console.error('Application operation failed', error);
-  return error instanceof FeatureError ? error.message : 'Die Daten konnten nicht geladen oder gespeichert werden. Bitte erneut versuchen.';
-}
+import { FeatureError } from './errors.ts';
+import { createActiveWorkoutServices, strengthProgress } from '../workout/active.ts';
+export { FeatureError, userMessage } from './errors.ts';
 export function createApplicationServices(repositories: ReturnType<typeof createRepositories>) {
+  const training = createActiveWorkoutServices(repositories);
   const home = {
     async load() {
       const [cycle, active] = await Promise.all([repositories.cycle.get(), repositories.workouts.active()]);
@@ -54,15 +53,19 @@ export function createApplicationServices(repositories: ReturnType<typeof create
       }
     },
     async overview(id: string) {
-      const [session, power, strength, circuit] = await Promise.all([
-        repositories.workouts.get(id), repositories.workouts.power(id), repositories.workouts.strength(id), repositories.workouts.circuit(id),
-      ]);
+      const [snapshot, circuit] = await Promise.all([repositories.workouts.trainingSnapshot(id), repositories.workouts.circuit(id)]);
+      if (!snapshot) throw new FeatureError('Workout nicht gefunden.');
+      const { session, power } = snapshot;
+      const strength = snapshot.strength.map(row => row.exercise);
       if (!power || strength.length !== 2 || !circuit) throw new FeatureError('Die Workout-Konfiguration ist unvollständig. Bitte zu Home zurückkehren.');
-      return { session, power, strength, circuit, label: workoutLabels[session.workout_type],
+      const progress = strengthProgress(snapshot.strength);
+      return { session, power, strength, circuit, label: workoutLabels[session.workout_type], progress,
+        canStrength: power.status === 'COMPLETE', canCircuit: power.status === 'COMPLETE' && progress.status === 'COMPLETE',
         durationSeconds: calculateCircuitDuration(circuit.stations.length, circuit.section.round_count) };
+
     },
     async endIncomplete(id: string) { await repositories.workouts.setStatus(id, 'INCOMPLETE'); },
   };
-  return { home, workout };
+  return { home, workout, training };
 }
 export type ApplicationServices = ReturnType<typeof createApplicationServices>;
