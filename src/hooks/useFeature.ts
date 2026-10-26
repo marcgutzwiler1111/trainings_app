@@ -6,14 +6,27 @@ import { userMessage } from '../features/application/services';
 export function useFocusedResource<T>(load: () => Promise<T>) {
   const [state, setState] = useState<{ data: T | null; loading: boolean; error: string | null; revision: number }>({ data: null, loading: true, error: null, revision: 0 });
   const [revision, setRevision] = useState(0);
+  const generation = useRef(0); const focused = useRef(false); const focusedLoad = useRef(load);
   useFocusEffect(useCallback(() => {
-    let current = true;
+    let current = true; focused.current = true; focusedLoad.current = load;
+    const request = ++generation.current;
     setState({ data: null, loading: true, error: null, revision });
-    load().then(data => { if (current) setState({ data, loading: false, error: null, revision }); })
-      .catch(error => { const message = userMessage(error); if (current) setState({ data: null, loading: false, error: message, revision }); });
-    return () => { current = false; };
+    load().then(data => { if (current && request === generation.current) setState({ data, loading: false, error: null, revision }); })
+      .catch(error => { const message = userMessage(error); if (current && request === generation.current) setState({ data: null, loading: false, error: message, revision }); });
+    return () => { current = false; focused.current = false; generation.current++; };
   }, [load, revision]));
-  return { ...state, reload: () => setRevision(n => n + 1) };
+  const refresh = useCallback(async () => {
+    if (!focused.current || focusedLoad.current !== load) return;
+    const request = ++generation.current;
+    try {
+      const data = await load();
+      if (focused.current && request === generation.current) setState({ data, loading: false, error: null, revision });
+    } catch (error) {
+      if (focused.current && request === generation.current) setState({ data: null, loading: false, error: userMessage(error), revision });
+      throw error;
+    }
+  }, [load, revision]);
+  return { ...state, refresh, reload: () => setRevision(n => n + 1) };
 }
 export function useFeatureAction() {
   const locked = useRef(false);

@@ -1,5 +1,8 @@
 # Application foundation — CODEX-004
 
+Power/Strength training added by CODEX-005 is documented in
+[workout/README.md](workout/README.md). The section below records the Phase-3 foundation.
+
 ## Scope and specification
 
 This task explicitly implements Home → Builder → persisted Workout Overview,

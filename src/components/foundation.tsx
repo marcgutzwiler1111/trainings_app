@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, type Ref, type ComponentRef } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,10 +11,11 @@ export function Copy({ children, heading = false, muted = false }: { children: R
   const p = usePalette();
   return <Text accessibilityRole={heading ? 'header' : undefined} style={{ color: muted ? p.muted : p.text, fontSize: heading ? 23 : 16, lineHeight: heading ? 31 : 24, fontWeight: heading ? '700' : '400' }}>{children}</Text>;
 }
-export function Page({ title, children }: { title: string; children: ReactNode }) {
+export function Page({ title, children, toolbar, scrollRef }: { title: string; children: ReactNode; toolbar?: ReactNode; scrollRef?: Ref<ComponentRef<typeof ScrollView>> }) {
   const p = usePalette();
   return <SafeAreaView style={{ flex: 1, backgroundColor: p.background }} edges={['top', 'bottom']}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+    {toolbar}
+    <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
       <Copy heading>{title}</Copy>{children}
     </ScrollView>
   </SafeAreaView>;
@@ -32,7 +33,7 @@ export function Button({ label, onPress, disabled = false, secondary = false, se
 }
 export function Field(props: TextInputProps & { label: string }) {
   const p = usePalette();
-  return <View style={{ gap: 6 }}><Copy>{props.label}</Copy><TextInput {...props} accessibilityLabel={props.label} placeholderTextColor={p.muted}
+  return <View style={{ gap: 6 }}><Copy>{props.label}</Copy><TextInput {...props} accessibilityLabel={props.accessibilityLabel ?? props.label} placeholderTextColor={p.muted}
     style={[styles.input, { color: p.text, backgroundColor: p.card, borderColor: p.border }]} /></View>;
 }
 export function Notice({ message }: { message: string | null }) {
