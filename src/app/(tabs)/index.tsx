@@ -37,6 +37,11 @@ export default function HomeScreen() {
           if (type) router.push({ pathname: '/workout/builder', params: { type } });
         }} />
       </Card>}
+      {data.latest && <Card><Copy heading>Letztes Workout</Copy>
+        <Copy>{workoutLabels[data.latest.workout_type]}</Copy>
+        <Copy>{data.latest.status === 'COMPLETE' ? '✓ Abgeschlossen' : 'Unvollständig beendet'}</Copy>
+        <Copy muted>{data.latest.completed_at ? new Date(data.latest.completed_at).toLocaleString('de-CH') : ''}</Copy>
+      </Card>}
       <ConfirmDialog visible={confirmRest} title="Ruhetag abschließen?" message="Der Cycle wechselt zum nächsten Eintrag. Es wird kein Workout angelegt."
         busy={action.busy} confirmLabel="Ruhetag bestätigen" onCancel={() => setConfirmRest(false)} onConfirm={() => {
           setConfirmRest(false);

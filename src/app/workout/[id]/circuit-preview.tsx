@@ -65,7 +65,8 @@ export default function CircuitScreen() {
     </>}
     {data?.complete && <Card><Copy heading>Circuit abgeschlossen</Copy><Copy>{data.section.round_count} Runden</Copy>
       <Copy>{data.totalStations} Stationen</Copy><Copy>{formatRestTime(data.durationSeconds)} geplante Dauer</Copy>
-      <Copy>Das Workout bleibt aktiv. Der Cycle bleibt unverändert.</Copy>
+      <Copy>Das Workout bleibt bis zum ausdrücklichen Abschluss aktiv. Der Cycle bleibt unverändert.</Copy>
+      <Button label="Zur Zusammenfassung" onPress={() => router.push({ pathname: '/workout/[id]/summary', params: { id } })} />
       <Button label="Zurück zum Workout" onPress={() => router.dismissTo({ pathname: '/workout/[id]', params: { id } })} />
     </Card>}
     {!resource.loading && <Button secondary label="Bereich neu starten" disabled={busy} onPress={() => { timer.pause(); setRestart(true); }} />}
