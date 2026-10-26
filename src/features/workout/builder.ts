@@ -34,11 +34,12 @@ export interface BuilderDraft {
   rounds: number;
   stations: { role: CircuitRole; exerciseId: string | null }[];
 }
+export type CircuitDraft = Pick<BuilderDraft, 'rounds' | 'stations'>;
 export function defaultBuilder(workoutType: WorkoutType): BuilderDraft {
   return { workoutType, powerExerciseId: null, strengthA: null, strengthB: null, rounds: 5,
     stations: defaultRoles.map(role => ({ role, exerciseId: null })) };
 }
-export function builderDuration(draft: BuilderDraft): number | null {
+export function builderDuration(draft: CircuitDraft): number | null {
   try { return calculateCircuitDuration(draft.stations.length, draft.rounds); }
   catch { return null; }
 }
@@ -51,10 +52,16 @@ export function validateBuilder(draft: BuilderDraft, exercises: readonly Exercis
   };
   if (!isWorkoutType(draft.workoutType)) errors.push('Bitte einen gültigen Workout Type wählen.');
   check(draft.powerExerciseId, 'Power'); check(draft.strengthA, 'Strength A'); check(draft.strengthB, 'Strength B');
+  return [...errors, ...validateCircuitDraft(draft, exercises)];
+}
+export function validateCircuitDraft(draft: CircuitDraft, exercises: readonly Exercise[]): string[] {
+  const errors: string[] = [];
+  const active = new Set(exercises.filter(e => e.is_active).map(e => e.id));
   if (!draft.stations.length) errors.push('Circuit: Mindestens eine Station hinzufügen.');
   for (const [index, station] of draft.stations.entries()) {
     if (!Object.hasOwn(roleLabels, station.role)) errors.push(`Station ${index + 1}: Bitte eine Rolle wählen.`);
-    check(station.exerciseId, `Station ${index + 1}`);
+    if (!station.exerciseId) errors.push(`Station ${index + 1}: Bitte eine Übung auswählen.`);
+    else if (!active.has(station.exerciseId)) errors.push(`Station ${index + 1}: Die gewählte Übung ist nicht mehr aktiv. Bitte erneut auswählen.`);
   }
   if (builderDuration(draft) === null) errors.push('Circuit: Runden und Stationen müssen positive ganze Zahlen sein.');
   return errors;
@@ -64,7 +71,7 @@ export function exerciseOptions(exercises: readonly Exercise[], area: Area, effe
   return exercises.filter(e => e.is_active && e.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) && (showAll || matches(e)))
     .sort((a, b) => Number(matches(b)) - Number(matches(a)) || a.name.localeCompare(b.name));
 }
-export function moveStation(draft: BuilderDraft, index: number, delta: -1 | 1): BuilderDraft {
+export function moveStation<T extends Pick<BuilderDraft, 'stations'>>(draft: T, index: number, delta: -1 | 1): T {
   const target = index + delta;
   if (target < 0 || target >= draft.stations.length) return draft;
   const stations = [...draft.stations]; [stations[index], stations[target]] = [stations[target], stations[index]];
