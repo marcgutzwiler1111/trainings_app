@@ -14,6 +14,9 @@ Workout Summary, guarded completion and cycle decisions are documented in
 Exercise Library, Create/Edit, activation and durable local thumbnails are documented in
 [src/features/exercises/README.md](src/features/exercises/README.md).
 
+Settings, bodyweight history and independent rest defaults are documented in
+[src/features/settings/README.md](src/features/settings/README.md).
+
 ## Prerequisites and installation
 
 Use Node.js 24 LTS (`.nvmrc`) and npm. From the repository root:
