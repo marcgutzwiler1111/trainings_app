@@ -17,6 +17,9 @@ Exercise Library, Create/Edit, activation and durable local thumbnails are docum
 Settings, bodyweight history and independent rest defaults are documented in
 [src/features/settings/README.md](src/features/settings/README.md).
 
+Power/Circuit Benchmark workflows, due states, history and resume are documented in
+[src/features/benchmarks/README.md](src/features/benchmarks/README.md).
+
 ## Prerequisites and installation
 
 Use Node.js 24 LTS (`.nvmrc`) and npm. From the repository root:
