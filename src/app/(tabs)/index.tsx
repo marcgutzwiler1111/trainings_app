@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { router } from 'expo-router';
+import { router, Tabs } from 'expo-router';
+import { View } from 'react-native';
 import { useApplication } from '../../features/application/provider';
 import { workoutLabels, workoutTypes } from '../../features/workout/builder';
 import type { WorkoutType } from '../../domain/shared/types';
@@ -15,7 +16,9 @@ export default function HomeScreen() {
   const data = resource.data;
   const type = selection?.source === data ? selection!.type : data?.item.type === 'WORKOUT' ? data.item.workoutType : null;
   const setType = (type: WorkoutType) => setSelection({ source: data, type });
-  return <Page title="Home">
+  return <>
+    <Tabs.Screen options={{ headerRight: () => <View style={{ marginRight: 12 }}><Button secondary label="Einstellungen" disabled={action.busy} onPress={() => router.push('/settings')} /></View> }} />
+    <Page title="Home">
     {resource.loading && <Loading />}
     <Notice message={resource.error ?? action.error} />
     {resource.error && <Button label="Erneut laden" onPress={resource.reload} />}
@@ -48,5 +51,5 @@ export default function HomeScreen() {
           void action.run(async () => { await home.completeRest(data.cycle.current_position); resource.reload(); });
         }} />
     </>}
-  </Page>;
+  </Page></>;
 }
