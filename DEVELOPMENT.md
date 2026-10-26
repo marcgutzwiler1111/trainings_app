@@ -8,6 +8,9 @@ Power/Strength training, timer behavior and validation are documented in
 Circuit runtime, resume and restart are documented in
 [src/features/workout/circuit-runtime.md](src/features/workout/circuit-runtime.md).
 
+Workout Summary, guarded completion and cycle decisions are documented in
+[src/features/workout/completion.md](src/features/workout/completion.md).
+
 ## Prerequisites and installation
 
 Use Node.js 24 LTS (`.nvmrc`) and npm. From the repository root:
@@ -65,7 +68,7 @@ error message if initialization fails. No destructive recovery is attempted.
 
 `PRAGMA user_version` records the schema version. Migration 1 establishes
 versioning without creating any product tables or seed data. Migration 2 adds
-the MVP schema; initialization also seeds the profile, cycle state and 29 exercises. Foreign keys and
+the MVP schema; migration 3 appends the nullable historical cycle-override decision. Initialization also seeds the profile, cycle state and 29 exercises. Foreign keys and
 WAL mode are enabled. Pending migrations and their version updates execute
 inside a transaction. Newer database versions are rejected without downgrading.
 
@@ -92,7 +95,7 @@ Any separate web host must also serve these headers. Web support supplements
 the documented Android/iOS targets; native behavior still needs a compatible
 device or emulator. Home, Builder, Overview and resume now use the existing
 Domain Core and persistence APIs. Power, Strength and normal Circuit training are
-available. Total workout completion and its cycle transition remain future work.
+available, including explicit total workout completion, Summary and cycle decisions.
 
 ## Cloud validation for CODEX-001
 
