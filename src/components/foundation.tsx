@@ -53,11 +53,11 @@ export function ConfirmDialog({ visible, title, message, confirmLabel, busy, onC
     </View></View>
   </Modal>;
 }
-export function ExerciseThumbnail({ uri, name }: { uri: string | null; name: string }) {
+export function ExerciseThumbnail({ uri, name, size = 44 }: { uri: string | null; name: string; size?: number }) {
   const [failed, setFailed] = useState(false); const p = usePalette();
   return uri && !failed
-    ? <Image source={{ uri }} accessibilityLabel={name} onError={() => setFailed(true)} style={styles.thumbnail} />
-    : <View style={[styles.thumbnail, { backgroundColor: p.background, borderColor: p.border, borderWidth: 1 }]}><Text accessibilityLabel="Kein Übungsbild" style={{ color: p.muted, fontSize: 24 }}>◇</Text></View>;
+    ? <Image source={{ uri }} accessibilityLabel={name} onError={() => setFailed(true)} style={[styles.thumbnail, { width: size, height: size }]} />
+    : <View style={[styles.thumbnail, { width: size, height: size, backgroundColor: p.background, borderColor: p.border, borderWidth: 1 }]}><Text accessibilityLabel="Kein Übungsbild" style={{ color: p.muted, fontSize: 24 }}>◇</Text></View>;
 }
 const styles = StyleSheet.create({
   page: { padding: 20, gap: 18, width: '100%', maxWidth: 720, alignSelf: 'center', paddingBottom: 40 },
