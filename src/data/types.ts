@@ -74,3 +74,12 @@ export interface RoundResult {
   id: string; circuit_benchmark_session_id: string; round_number: number;
   station_position: number; reps: number; saved_at: string;
 }
+
+export interface WorkoutStartConfiguration {
+  workoutType: WorkoutType;
+  powerExerciseId: string;
+  strengthA: { exerciseId: string; effect: Effect };
+  strengthB: { exerciseId: string; effect: Effect };
+  rounds: number;
+  stations: readonly { exerciseId: string; role: CircuitRole; effect: Effect }[];
+}

@@ -1,6 +1,6 @@
 import { Store, required, insert, uuid, type Database } from '../database.ts';
 import { readExercise } from './exercise.ts';
-import type { WorkoutSession, PowerSection, StrengthExercise, StrengthSet, CircuitSection, CircuitStation, CycleState, Effect, CircuitRole } from '../types.ts';
+import type { WorkoutSession, PowerSection, StrengthExercise, StrengthSet, CircuitSection, CircuitStation, CycleState, Effect, CircuitRole, Profile, WorkoutStartConfiguration } from '../types.ts';
 import type { WorkoutType } from '../../domain/shared/types.ts';
 import { completeWorkout, getCycleItem, type ManualOverrideResult } from '../../domain/cycle/cycle.ts';
 import { calculateCircuitDuration } from '../../domain/circuit/duration.ts';
@@ -17,6 +17,28 @@ export class WorkoutRepository {
   constructor(store: Store) { this.store = store; }
   get(id: string): Promise<WorkoutSession> { return this.store.read(db => required(db, 'SELECT * FROM workout_sessions WHERE id=?', id)); }
   list(): Promise<WorkoutSession[]> { return this.store.read(db => db.getAllAsync('SELECT * FROM workout_sessions ORDER BY created_at,rowid')); }
+  active(): Promise<WorkoutSession | null> {
+    return this.store.read(db => db.getFirstAsync("SELECT * FROM workout_sessions WHERE status='IN_PROGRESS'"));
+  }
+  /** Reuse selection APIs inside one serialized transaction, never several independent commits. */
+  startConfigured(config: WorkoutStartConfiguration): Promise<string> {
+    calculateCircuitDuration(config.stations.length, config.rounds);
+    return this.store.transaction(async scope => {
+      const repository = new WorkoutRepository(scope);
+      if (await repository.active()) throw new ActiveWorkoutError();
+      for (const id of [config.powerExerciseId, config.strengthA.exerciseId, config.strengthB.exerciseId, ...config.stations.map(s => s.exerciseId)]) {
+        if (!(await readExercise(scope.db, id)).is_active) throw new InactiveExerciseError();
+      }
+      const profile = await required<Profile>(scope.db, 'SELECT * FROM profile');
+      const id = await repository.create(config.workoutType, profile.current_bodyweight_kg);
+      await repository.selectPower(id, config.powerExerciseId);
+      await repository.selectStrength(id, 'A', config.strengthA.exerciseId, config.strengthA.effect);
+      await repository.selectStrength(id, 'B', config.strengthB.exerciseId, config.strengthB.effect);
+      await repository.saveCircuit(id, config.rounds, config.stations);
+      await repository.setStatus(id, 'IN_PROGRESS');
+      return id;
+    });
+  }
   create(workoutType: WorkoutType, bodyweight: number | null = null): Promise<string> {
     if (bodyweight !== null) positive(bodyweight, 'bodyweight');
     return this.store.write(async db => {
@@ -180,4 +202,11 @@ export class WorkoutRepository {
       return null;
     });
   }
+}
+
+export class ActiveWorkoutError extends Error {
+  constructor() { super('An active workout already exists.'); }
+}
+export class InactiveExerciseError extends Error {
+  constructor() { super('An exercise is no longer active.'); }
 }

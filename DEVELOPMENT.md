@@ -1,6 +1,8 @@
 # Development
 
-Phase 2 persistence APIs and validation are documented in [src/data/README.md](src/data/README.md).
+Phase 2 persistence APIs are documented in [src/data/README.md](src/data/README.md).
+The Home/Builder/start workflow and its validation are documented in
+[src/features/README.md](src/features/README.md).
 
 ## Prerequisites and installation
 
@@ -41,11 +43,13 @@ npx expo export --platform android --platform ios --max-workers 2
 
 ## Structure
 
-- `src/app/`: Expo Router root and four placeholder tab routes.
-- `src/components/`: shared placeholder UI.
+- `src/app/`: Expo Router, functional Home, Workout Builder and Overview; three placeholder tabs.
+- `src/components/`: native controls, confirmations, exercise selector and placeholder UI.
 - `src/data/`: SQLite initialization and migration mechanism.
-- `src/features/`, `src/domain/`, `src/hooks/`, `src/lib/`, `src/constants/`,
-  `src/types/`: reserved layers; intentionally empty in Phase 0.
+- `src/features/`: application services and repository provider.
+- `src/domain/`: pure training rules and calculations.
+- `src/hooks/`: feature loading/actions. `src/lib/`, `src/constants/` and
+  `src/types/` remain reserved.
 - `src/assets/`: initial Expo template icons.
 - `tests/`: migration integration tests using Node's real SQLite engine.
 
@@ -82,8 +86,8 @@ The optional web target uses Expo SQLite's WASM worker. `metro.config.js`
 serves WASM assets and sets COOP/COEP headers needed for SharedArrayBuffer.
 Any separate web host must also serve these headers. Web support supplements
 the documented Android/iOS targets; native behavior still needs a compatible
-device or emulator. The UI remains the Phase 0 placeholder shell; Phase 1 domain
-logic and Phase 2 persistence are available to subsequent feature work.
+device or emulator. Home, Builder, Overview and resume now use the existing
+Domain Core and persistence APIs. Power/Strength/Circuit runtime remains future work.
 
 ## Cloud validation for CODEX-001
 
