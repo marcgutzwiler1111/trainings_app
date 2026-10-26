@@ -5,6 +5,8 @@ The Home/Builder/start workflow and its validation are documented in
 [src/features/README.md](src/features/README.md).
 Power/Strength training, timer behavior and validation are documented in
 [src/features/workout/README.md](src/features/workout/README.md).
+Circuit runtime, resume and restart are documented in
+[src/features/workout/circuit-runtime.md](src/features/workout/circuit-runtime.md).
 
 ## Prerequisites and installation
 
@@ -89,8 +91,8 @@ serves WASM assets and sets COOP/COEP headers needed for SharedArrayBuffer.
 Any separate web host must also serve these headers. Web support supplements
 the documented Android/iOS targets; native behavior still needs a compatible
 device or emulator. Home, Builder, Overview and resume now use the existing
-Domain Core and persistence APIs. Power/Strength training is available; Circuit
-runtime and total workout completion remain future work.
+Domain Core and persistence APIs. Power, Strength and normal Circuit training are
+available. Total workout completion and its cycle transition remain future work.
 
 ## Cloud validation for CODEX-001
 
