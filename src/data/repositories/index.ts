@@ -1,3 +1,4 @@
+import { ProgressRepository } from './progress.ts';
 import { Store, type Database } from '../database.ts';
 import { ProfileRepository, BodyweightRepository } from './profile.ts';
 import { ExerciseRepository } from './exercise.ts';
@@ -17,5 +18,6 @@ export function createRepositories(db: Database, now?: () => string) {
     workouts: new WorkoutRepository(store),
     benchmarks: new BenchmarkRepository(store),
     history: new HistoryRepository(store),
+    progress: new ProgressRepository(store),
   };
 }
