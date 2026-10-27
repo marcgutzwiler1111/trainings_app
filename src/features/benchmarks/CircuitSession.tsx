@@ -6,6 +6,7 @@ import { useFeatureAction, useFocusedResource } from '../../hooks/useFeature';
 import { useBenchmarkStationTimer } from '../../hooks/useBenchmarkStationTimer';
 import { Button, Card, Copy, ExerciseThumbnail, Field, Loading, Notice, Page, usePalette } from '../../components/foundation';
 import { formatRestTime } from '../workout/restTimer';
+import { CircuitBenchmarkBreakdown, CircuitBenchmarkResults } from './BenchmarkResults';
 import { BenchmarkActions } from './BenchmarkActions';
 
 const metric=new Intl.NumberFormat('de-CH',{maximumFractionDigits:2});
@@ -41,13 +42,16 @@ export function CircuitSession({id}:{id:string}) {
           }}/>
         </Card>
       </>}
-      <Card><Copy heading>{active?data.ready?'Alle 30 Ergebnisse gespeichert':'Benchmark aktiv':data.session.status==='COMPLETE'?'Circuit Benchmark abgeschlossen':'Circuit Benchmark unvollständig beendet'}</Copy>
+      {!active&&<><Copy heading>{data.session.status==='COMPLETE'?'Circuit Benchmark abgeschlossen':'Circuit Benchmark unvollständig beendet'}</Copy><CircuitBenchmarkResults data={data}/></>}
+      {active&&<>
+      <Card><Copy heading>{data.ready?'Alle 30 Ergebnisse gespeichert':'Benchmark aktiv'}</Copy>
         <Copy>{data.results.length} / 30 Rundenergebnisse gespeichert</Copy><Copy>6 Stationen · 5 Runden · 60 Sekunden</Copy>
         <Copy>Total Volume: {metric.format(data.totalVolume)} kg</Copy><Copy>Relative Performance: {metric.format(data.relativePerformance)}</Copy>
       </Card>
       <Card><Copy heading>Gesperrte Bedingungen</Copy><Copy>Körpergewicht: {data.session.bodyweight_kg_snapshot} kg</Copy>
         <Copy>Goblet Squat: {data.session.goblet_squat_load_kg} kg</Copy><Copy>Kettlebell Swing: {data.session.kettlebell_swing_load_kg} kg</Copy><Copy>Pull-up Zusatzgewicht: {data.session.pullup_added_load_kg} kg</Copy>
       </Card>
+      </>}
       {active&&<BenchmarkActions ready={data.ready} busy={action.busy} onFinish={finish}/>}
       {active&&data.results.length>0&&<Button secondary label={corrections?'Korrekturen schließen':'Gespeicherte Ergebnisse korrigieren'} disabled={action.busy} onPress={()=>{timer.pause();setCorrections(value=>!value);}}/>}
       {active&&corrections&&data.results.map(row=>{
@@ -56,11 +60,7 @@ export function CircuitSession({id}:{id:string}) {
           <Button secondary label={`R${row.round_number} S${row.station_position} korrigieren`} disabled={action.busy} onPress={()=>{void action.run(async()=>{await benchmarks.correctCircuit(id,row.round_number,row.station_position,drafts[key]??row.reps.toString());await resource.refresh();});}}/>
         </Card>;
       })}
-      {(!active||data.ready)&&data.breakdown.map(row=><Card key={row.station.id}>
-        <Copy heading>{row.station.exercise_name_snapshot}</Copy><Copy>Effektives Gewicht: {row.station.effective_weight_kg} kg</Copy>
-        {row.rounds.map((result,index)=><Copy key={index}>R{index+1}: {result?.reps??'—'} Reps</Copy>)}
-        <Copy>Total Reps: {row.totalReps}</Copy><Copy>Volume: {metric.format(row.volume)} kg</Copy>
-      </Card>)}
+      {active&&data.ready&&<CircuitBenchmarkBreakdown data={data}/>}
       <Button secondary label="Zur Benchmark-Übersicht" disabled={action.busy} onPress={()=>router.dismissTo({pathname:'/benchmark/[kind]',params:{kind:'circuit'}})}/>
     </>}
   </Page>;

@@ -6,6 +6,7 @@ import { useFeatureAction, useFocusedResource } from '../../hooks/useFeature';
 import { Button, Card, Copy, Field, Loading, Notice, Page } from '../../components/foundation';
 import { powerProtocol } from '../../domain/benchmarks/protocol';
 import { sideLabels } from './services';
+import { PowerBenchmarkResults } from './BenchmarkResults';
 import { BenchmarkActions } from './BenchmarkActions';
 
 export function PowerSession({id}:{id:string}) {
@@ -24,7 +25,7 @@ export function PowerSession({id}:{id:string}) {
         {powerProtocol.map((test,index)=><Button key={test.testType} secondary label={`Test ${index+1}: ${test.label}`} selected={current===index} disabled={action.busy||index>data.currentTest} onPress={()=>setSelected(index)}/>)}
         {selected!==null&&<Button secondary label="Zum aktuellen Test" disabled={action.busy} onPress={()=>setSelected(null)}/>}
       </>}
-      {data.groups.filter(group=>!active||group.testIndex===current).map(group=><Card key={`${group.testIndex}/${group.side}`}>
+      {active?data.groups.filter(group=>group.testIndex===current).map(group=><Card key={`${group.testIndex}/${group.side}`}>
         <Copy heading>{group.label}{group.side==='NONE'?'':` · ${sideLabels[group.side]}`}</Copy>
         {group.test?.medicine_ball_weight_kg!==null&&group.test&&<Copy>Medicine Ball: {group.test.medicine_ball_weight_kg} kg</Copy>}
         {[1,2,3].map(n=>{
@@ -45,7 +46,7 @@ export function PowerSession({id}:{id:string}) {
         {group.comparison==='COMPARABLE'&&<Copy>Vergleich: {group.delta!>0?'+':''}{group.delta} {group.test?.unit}</Copy>}
         {group.comparison==='NOT_COMPARABLE'&&<Copy>Nicht direkt vergleichbar: unterschiedliches Ballgewicht oder unterschiedliche Einheit.</Copy>}
         {group.comparison==='INCOMPLETE'&&<Copy>Direkter Vergleich nach drei gespeicherten Versuchen.</Copy>}
-      </Card>)}
+      </Card>):<PowerBenchmarkResults data={data} showComparison/>}
       {active&&<BenchmarkActions ready={data.ready} busy={action.busy} onFinish={status=>{void action.run(async()=>{await benchmarks.finish('power',id,status);await resource.refresh();scroll.current?.scrollTo({y:0,animated:false});});}}/>}
       <Button secondary label="Zur Benchmark-Übersicht" disabled={action.busy} onPress={()=>router.dismissTo({pathname:'/benchmark/[kind]',params:{kind:'power'}})}/>
     </>}
