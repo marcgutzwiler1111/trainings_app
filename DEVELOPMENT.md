@@ -20,6 +20,9 @@ Settings, bodyweight history and independent rest defaults are documented in
 Power/Circuit Benchmark workflows, due states, history and resume are documented in
 [src/features/benchmarks/README.md](src/features/benchmarks/README.md).
 
+Unified Training History, read-only snapshot details and validation are documented in
+[src/features/history/README.md](src/features/history/README.md).
+
 ## Prerequisites and installation
 
 Use Node.js 24 LTS (`.nvmrc`) and npm. From the repository root:
@@ -59,7 +62,7 @@ npx expo export --platform android --platform ios --max-workers 2
 
 ## Structure
 
-- `src/app/`: Expo Router, functional Home, Exercise Library, Workout Builder and Overview; two placeholder tabs.
+- `src/app/`: Expo Router, functional Home, History, Exercise Library, Workout Builder and Overview; Progress remains a placeholder.
 - `src/components/`: native controls, confirmations, exercise selector and placeholder UI.
 - `src/data/`: SQLite initialization and migration mechanism.
 - `src/features/`: application services and repository provider.
