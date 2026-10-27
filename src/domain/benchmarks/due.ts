@@ -51,3 +51,11 @@ export function calculateBenchmarkDueState(
     ? { status: 'NOT_DUE', daysRemaining: Math.ceil(remainingMs / DAY_MS) }
     : { status: 'DUE', daysOverdue: Math.max(0, Math.floor(-remainingMs / DAY_MS)) };
 }
+
+/** UI-facing dates share the same domain interval and COMPLETE-only eligibility. */
+export function benchmarkSchedule(type: ScheduledBenchmarkType, sessions: readonly ScheduledBenchmarkSession[], nowMs: number) {
+  const state = calculateBenchmarkDueState(type, sessions, nowMs);
+  const times = sessions.filter(session => session.benchmarkType === type && session.status === 'COMPLETE').map(session => session.completedAtMs!);
+  const lastCompletedAtMs = times.length ? Math.max(...times) : null;
+  return { state, lastCompletedAtMs, dueAtMs: lastCompletedAtMs === null ? null : lastCompletedAtMs + INTERVAL_MS };
+}

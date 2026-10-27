@@ -32,7 +32,12 @@ export default function HomeScreen() {
         <Copy>{data.nextLabel}</Copy><Copy muted>Cycle {data.cycle.current_position} / 6</Copy>
         {data.item.type === 'REST' && !data.active && <Button label="Ruhetag abschließen" disabled={action.busy} onPress={() => setConfirmRest(true)} />}
       </Card>
-      {!data.active && <Card>
+      {data.benchmarkStatus.active && data.benchmarkStatus.active.kind !== 'WORKOUT' && <Card>
+        <Copy heading>Aktiver {data.benchmarkStatus.active.kind === 'POWER' ? 'Power Benchmark' : 'Circuit Benchmark'}</Copy>
+        <Button label="Benchmark fortsetzen" onPress={() => router.push({ pathname: '/benchmark/[kind]/[id]', params: { kind: data.benchmarkStatus.active!.kind === 'POWER' ? 'power' : 'circuit', id: data.benchmarkStatus.active!.id } })} />
+        <Copy muted>Beende zuerst die aktive Einheit, bevor du ein neues Workout startest.</Copy>
+      </Card>}
+      {!data.active && !data.benchmarkStatus.active && <Card>
         <ChoiceField label="Workout Type" value={type} disabled={action.busy}
           options={workoutTypes.map(value => ({ value, label: workoutLabels[value] }))} onChange={setType} />
         {data.item.type === 'REST' && <Copy muted>Du kannst für ein manuelles Workout einen Typ wählen.</Copy>}
@@ -45,6 +50,10 @@ export default function HomeScreen() {
         <Copy>{data.latest.status === 'COMPLETE' ? '✓ Abgeschlossen' : 'Unvollständig beendet'}</Copy>
         <Copy muted>{data.latest.completed_at ? new Date(data.latest.completed_at).toLocaleString('de-CH') : ''}</Copy>
       </Card>}
+      {data.benchmarkStatus.cards.map(card => <Card key={card.kind}>
+        <Copy heading>{card.kind === 'power' ? 'Power Benchmark' : 'Circuit Benchmark'}</Copy><Copy>{card.statusLabel}</Copy>
+        <Button secondary label={`${card.kind === 'power' ? 'Power' : 'Circuit'} Benchmark öffnen`} onPress={() => router.push({ pathname: '/benchmark/[kind]', params: { kind: card.kind } })} />
+      </Card>)}
       <ConfirmDialog visible={confirmRest} title="Ruhetag abschließen?" message="Der Cycle wechselt zum nächsten Eintrag. Es wird kein Workout angelegt."
         busy={action.busy} confirmLabel="Ruhetag bestätigen" onCancel={() => setConfirmRest(false)} onConfirm={() => {
           setConfirmRest(false);
