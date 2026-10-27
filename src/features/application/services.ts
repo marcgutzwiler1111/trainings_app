@@ -1,3 +1,4 @@
+import { createProgressServices } from '../progress/services.ts';
 import { createHistoryServices } from '../history/services.ts';
 import { createBenchmarkServices } from '../benchmarks/services.ts';
 import { ActiveTrainingError } from '../../data/activeTraining.ts';
@@ -79,6 +80,6 @@ export function createApplicationServices(repositories: ReturnType<typeof create
     },
     async endIncomplete(id: string) { await repositories.workouts.setStatus(id, 'INCOMPLETE'); },
   };
-  return { home, workout, training, benchmarks, history: createHistoryServices(repositories), settings: createSettingsServices(repositories), exercises: createExerciseServices(repositories), completion: createCompletionServices(repositories), circuit: createCircuitServices(repositories) };
+  return { home, workout, training, benchmarks, history: createHistoryServices(repositories), progress: createProgressServices(repositories), settings: createSettingsServices(repositories), exercises: createExerciseServices(repositories), completion: createCompletionServices(repositories), circuit: createCircuitServices(repositories) };
 }
 export type ApplicationServices = ReturnType<typeof createApplicationServices>;

@@ -8,6 +8,7 @@ are treated as immutable; there is no persistence or UI behavior here.
 | --- | --- |
 | `cycle/cycle.ts` | `getCycleItem`, `nextCyclePosition`, `completeRest`, `completeWorkout`; cycle, item, completion and override types |
 | `strength/calculations.ts` | `calculateSetVolume`, `calculateExerciseVolume`, `calculateStrengthBenchmark`, `evaluateStrengthBenchmark`, `calculateE1RM`, `calculateRelativeE1RM`, `calculateRelativeStrength` |
+| `strength/history.ts` | `historicalVolumePrs`; chronological, strict per-exercise PR detection using the existing eligibility rules |
 | `circuit/duration.ts` | `calculateCircuitDuration` (stations × rounds × 60 seconds) |
 | `benchmarks/power.ts` | `arePowerBenchmarksComparable`; discriminated test conditions and side requirements |
 | `benchmarks/circuit.ts` | `calculateCircuitEffectiveWeight`, `calculateCircuitRowVolume`, `calculateCircuitExerciseVolume`, `calculateCircuitTotalVolume`, `calculateRelativePerformance` |
@@ -93,3 +94,12 @@ The existing test command discovers `tests/domain-*.test.ts` and the Phase 0
 migration tests. Including the CODEX-002A eligibility correction, there are 123 Domain Core tests;
 the combined suite has 128 passing tests. No additional dependencies, UI routes, tables or repositories
 were added, and the existing product specification is unchanged.
+
+## Historical Strength PRs — CODEX-012
+
+`historicalVolumePrs` accepts chronologically ordered immutable performances. The
+application layer supplies timestamp/identity ordering. The helper delegates to
+`evaluateStrengthBenchmark`, retaining one best eligible performance per exact ID.
+Partial performances and ties never raise the baseline. Historical PR labels are
+separate from the current all-time maximum. Progress aggregation and validation
+are documented in [../features/progress/README.md](../features/progress/README.md).
